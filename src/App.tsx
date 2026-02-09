@@ -64,6 +64,22 @@ function App() {
     const saved = localStorage.getItem('soul-link-state');
     if (saved) {
       const parsed = JSON.parse(saved);
+      
+      // Smart merge of routes: preserve status/encounters for existing IDs, but use new Names/Order from INITIAL_ROUTES
+      const mergedRoutes = INITIAL_ROUTES.map(initialRoute => {
+        const savedRoute = parsed.routes.find((r: Route) => r.id === initialRoute.id);
+        if (savedRoute) {
+          return {
+            ...initialRoute, // Use new name/structure
+            status: savedRoute.status,
+            encounterP1: savedRoute.encounterP1,
+            encounterP2: savedRoute.encounterP2,
+            encounterP3: savedRoute.encounterP3
+          };
+        }
+        return initialRoute;
+      });
+
       return {
           ...parsed,
           playerNames: parsed.playerNames || {
@@ -71,9 +87,7 @@ function App() {
             player2: 'Player 2',
             player3: 'Player 3'
           },
-          routes: parsed.routes.length < INITIAL_ROUTES.length ? 
-            [...parsed.routes, ...INITIAL_ROUTES.slice(parsed.routes.length)] : 
-            parsed.routes
+          routes: mergedRoutes
       };
     }
     return {

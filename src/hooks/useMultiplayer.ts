@@ -21,7 +21,16 @@ export const useMultiplayer = (
   const initializePeer = useCallback(() => {
     if (peerRef.current) return peerRef.current;
 
-    const peer = new Peer();
+    const peer = new Peer({
+      config: {
+        iceServers: [
+          { urls: 'stun:stun.l.google.com:19302' },
+          { urls: 'stun:stun1.l.google.com:19302' },
+          { urls: 'stun:stun2.l.google.com:19302' }
+        ]
+      }
+    });
+
     peer.on('open', (id) => {
         setPeerId(id);
     });
@@ -59,7 +68,15 @@ export const useMultiplayer = (
 
   const joinSession = useCallback((hostId: string) => {
       setMode('client');
-      const peer = new Peer(); // Client also needs a peer ID to connect
+      // Client also needs a peer ID to connect, using same config
+      const peer = new Peer({
+        config: {
+          iceServers: [
+            { urls: 'stun:stun.l.google.com:19302' },
+            { urls: 'stun:stun1.l.google.com:19302' }
+          ]
+        }
+      }); 
       peerRef.current = peer;
       
       peer.on('open', () => {
