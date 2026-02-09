@@ -24,7 +24,10 @@ export const useMultiplayer = (
          
          if (id) {
              // Upload initial state
-             await set(newSessionRef, currentState);
+             // Must sanitize initial state too, or creation fails if Routes have undefined props
+             const cleanState = sanitizeForFirebase(currentState);
+             await set(newSessionRef, cleanState);
+             
              setSessionId(id);
              setIsHost(true);
              setIsConnected(true);

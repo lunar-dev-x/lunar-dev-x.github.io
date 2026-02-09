@@ -47,7 +47,9 @@ export const PokemonCard: React.FC<Props> = ({ pokemon, onUpdate }) => {
       style={style}
       {...attributes} 
       {...listeners}
-      className={`relative flex items-center gap-3 p-2 bg-zinc-900 rounded-md border-l-[3px] shadow-sm cursor-grab hover:bg-zinc-800 hover:shadow-md transition group overflow-hidden ${borderColor}`}
+      className={`relative flex items-center gap-3 p-2 bg-zinc-900 rounded-md border-l-[3px] shadow-sm cursor-grab 
+        hover:bg-zinc-800 hover:shadow-md hover:scale-[1.02] active:scale-[0.98] active:cursor-grabbing 
+        transition-all duration-200 ease-out group overflow-hidden ${borderColor}`}
     >
       {/* Pair Indicator */}
       <div 

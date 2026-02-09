@@ -12,6 +12,7 @@ import RouteTracker from './components/RouteTracker';
 import PokemonCard from './components/PokemonCard';
 import SyncManager from './components/SyncManager';
 import { useMultiplayer } from './hooks/useMultiplayer.ts'; // Hook for Firebase sync
+import { motion } from 'framer-motion';
 
 const INITIAL_ROUTES: Route[] = [
   { id: 'start', name: 'Nuvema Town (Starter)', status: 'empty' },
@@ -365,7 +366,12 @@ function App() {
 
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100 font-sans selection:bg-emerald-500/30">
-      <header className="sticky top-0 z-40 w-full border-b border-zinc-800 bg-zinc-950/80 backdrop-blur supports-[backdrop-filter]:bg-zinc-950/60">
+      <motion.header 
+        initial={{ y: -20, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        transition={{ duration: 0.5 }}
+        className="sticky top-0 z-40 w-full border-b border-zinc-800 bg-zinc-950/80 backdrop-blur supports-[backdrop-filter]:bg-zinc-950/60"
+      >
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
           <div className="flex flex-col">
             <h1 className="text-xl font-bold tracking-tight bg-gradient-to-r from-emerald-400 to-cyan-400 bg-clip-text text-transparent">
@@ -418,9 +424,14 @@ function App() {
              </div>
           </div>
         </div>
-      </header>
+      </motion.header>
 
-      <main className="container mx-auto px-4 py-8">
+      <motion.main 
+        initial={{ opacity: 0, scale: 0.98 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ duration: 0.5, delay: 0.2 }}
+        className="container mx-auto px-4 py-8"
+      >
         <DndContext 
           sensors={sensors}
           collisionDetection={closestCenter}
@@ -516,7 +527,7 @@ function App() {
               ) : null}
           </DragOverlay>
         </DndContext>
-      </main>
+      </motion.main>
     </div>
   )
 }

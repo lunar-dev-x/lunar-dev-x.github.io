@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { WifiOff, Copy, Play, Link, Users, LogOut, Loader2 } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 
 interface SyncManagerProps {
   sessionId: string;
@@ -36,22 +37,36 @@ const SyncManager: React.FC<SyncManagerProps> = ({ sessionId, isConnected, userC
     <div className="relative z-50">
       <button 
         onClick={() => setIsOpen(!isOpen)} 
-        className={`flex items-center gap-2 px-3 py-2 rounded-md border text-sm font-medium transition-all duration-200 ${
+        className={`relative flex items-center gap-2 px-3 py-2 rounded-md border text-sm font-medium transition-all duration-300 ${
           isConnected 
-            ? 'bg-emerald-950/30 border-emerald-500/50 text-emerald-400 hover:bg-emerald-950/50' 
-            : 'bg-zinc-900 border-zinc-700 text-zinc-300 hover:border-zinc-500 hover:text-white'
+            ? 'bg-emerald-950/30 border-emerald-500/50 text-emerald-400 hover:bg-emerald-950/50 hover:shadow-lg hover:shadow-emerald-900/20' 
+            : 'bg-zinc-900 border-zinc-700 text-zinc-300 hover:border-zinc-500 hover:text-white hover:shadow-lg hover:shadow-zinc-900/50'
         }`}
       >
         {isConnected ? <Users size={16} /> : <WifiOff size={16} />}
         <span>{isConnected ? `${userCount} Active` : 'Sync'}</span>
+        {isConnected && <span className="absolute -top-1 -right-1 flex h-2.5 w-2.5">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+        </span>}
       </button>
 
+      <AnimatePresence>
       {isOpen && (
         <>
             {/* Backdrop for mobile */}
-            <div className="fixed inset-0 z-40 bg-black/50 md:hidden" onClick={() => setIsOpen(false)} />
+            <motion.div 
+               initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+               className="fixed inset-0 z-40 bg-black/50 md:hidden" onClick={() => setIsOpen(false)} 
+            />
             
-            <div className="absolute top-12 right-0 w-[340px] bg-zinc-950 border border-zinc-800 rounded-lg shadow-2xl p-6 z-50 flex flex-col gap-6 animate-in fade-in zoom-in-95 duration-200">
+            <motion.div 
+                initial={{ opacity: 0, scale: 0.95, y: -10 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: -10 }}
+                transition={{ duration: 0.2, ease: "easeOut" }}
+                className="absolute top-12 right-0 w-[340px] bg-zinc-950/95 backdrop-blur-xl border border-zinc-800 rounded-lg shadow-2xl p-6 z-50 flex flex-col gap-6 ring-1 ring-white/5"
+            >
             <div className="flex justify-between items-center border-b border-zinc-800 pb-4">
                 <h3 className="font-semibold text-lg text-white">Multiplayer Sync</h3>
                 <span className={`text-[10px] px-2 py-0.5 rounded-full uppercase tracking-wider font-bold ${isConnected ? 'bg-emerald-500/20 text-emerald-400' : 'bg-zinc-800 text-zinc-500'}`}>
@@ -130,9 +145,10 @@ const SyncManager: React.FC<SyncManagerProps> = ({ sessionId, isConnected, userC
                 </div>
                 </div>
             )}
-            </div>
+            </motion.div>
         </>
       )}
+      </AnimatePresence>
     </div>
   );
 };
