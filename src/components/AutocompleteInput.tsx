@@ -63,11 +63,11 @@ const AutocompleteInput: React.FC<Props> = ({ value, onChange, options, placehol
         autoFocus={autoFocus}
       />
       {showSuggestions && filteredOptions.length > 0 && (
-        <ul className="absolute z-50 min-w-[200px] w-full bg-zinc-950/95 backdrop-blur-sm border border-zinc-800 rounded-lg mt-1 max-h-48 overflow-y-auto shadow-xl ring-1 ring-black/50">
+        <ul className="absolute z-50 w-full bg-gray-800 border border-gray-600 rounded mt-1 max-h-48 overflow-y-auto shadow-xl">
           {filteredOptions.map(opt => (
              <li 
                 key={opt} 
-                className="px-3 py-2 hover:bg-zinc-800 cursor-pointer text-zinc-300 hover:text-white text-sm transition-colors border-b border-zinc-900 last:border-0"
+                className="px-3 py-2 hover:bg-gray-700 cursor-pointer text-gray-200 text-sm"
                 onClick={() => {
                     onChange(opt);
                     setShowSuggestions(false);

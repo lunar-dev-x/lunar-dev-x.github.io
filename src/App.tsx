@@ -109,31 +109,8 @@ function App() {
 
   // --- Multiplayer Logic ---
 
-  // --- UI Sensors ---
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
-  );
-
-  // --- Multiplayer Logic ---
-  const handleStateReceived = (newState: AppState) => {
-    setState(newState);
-  };
-
-  const { sessionId, isConnected, userCount, createSession, joinSession, leaveSession, syncState } = useMultiplayer(state, handleStateReceived);
-
-  const updateState = (updater: (prev: AppState) => AppState) => {
-      setState(prev => {
-          const newState = updater(prev);
-          if (isConnected) {
-              syncState(newState);
-          }
-          return newState;
-      });
-  };
-
-  const handleAction = (type: string, payload: any) => {
-    updateState(prev => {
+  const performAction = (type: string, payload: any) => {
+    setState(prev => {
       switch (type) {
         case 'RESET':
           return {
@@ -167,6 +144,8 @@ function App() {
             };
 
         case 'CATCH_POKEMON':
+            // payload: { routeId, pokemons: Pokemon[] }
+            // Note: Route update to 'caught' should be handled here to ensure atomicity
             const routeUpdate = prev.routes.map(r => r.id === payload.routeId ? { ...r, status: 'caught' as const, encounterP1: payload.pokemons[0]?.id, encounterP2: payload.pokemons[1]?.id, encounterP3: payload.pokemons[2]?.id } : r);
             return {
               ...prev,
@@ -202,9 +181,11 @@ function App() {
 
            let newPokemon = [...prev.pokemon];
            
+           // SOUL LINK: If status changes (e.g. Party -> Box), move ALL linked Pokemon
            if (targetStatus !== activePokemon.status) {
                 newPokemon = newPokemon.map(p => {
                     if (p.pairId === activePokemon.pairId) {
+                        // If it's the dragged one, update owner (though usually same) and status
                         if (p.id === activeId) {
                             return {
                                 ...p,
@@ -212,6 +193,7 @@ function App() {
                                 owner: targetStatus === 'graveyard' ? activePokemon.owner : targetOwner
                             };
                         }
+                        // For linked partners, just update status so they move to their respective Box/Party
                         return {
                             ...p,
                             status: targetStatus
@@ -220,6 +202,7 @@ function App() {
                     return p;
                 });
            } else {
+                // Same status (reordering), just update the single active one
                 const movedIndex = newPokemon.findIndex(p => p.id === activeId);
                 newPokemon[movedIndex] = {
                     ...newPokemon[movedIndex],
@@ -230,7 +213,7 @@ function App() {
 
            if (!overId.startsWith('party-') && !overId.startsWith('box-') && overId !== 'graveyard') {
                const overIndex = newPokemon.findIndex(p => p.id === overId);
-               const movedIndex = newPokemon.findIndex(p => p.id === activeId); 
+               const movedIndex = newPokemon.findIndex(p => p.id === activeId); // Find again in case it changed reference
                
                if (overIndex !== -1 && movedIndex !== -1) {
                   newPokemon = arrayMove(newPokemon, movedIndex, overIndex);
@@ -246,18 +229,44 @@ function App() {
     });
   };
 
-  // --- Handlers ---
+  const handleStateReceived = (newState: AppState) => {
+    setState(newState);
+  };
+
+  const handleActionReceived = ({type, payload}: {type: string, payload: any}) => {
+     performAction(type, payload);
+  };
+
+  const { peerId, mode, connectionCount, startHosting, joinSession, sendAction } = useMultiplayer(state, handleStateReceived, handleActionReceived);
+
+  const dispatch = (type: string, payload: any) => {
+     if (mode === 'client') {
+       sendAction(type, payload);
+     } else {
+       performAction(type, payload);
+     }
+  };
+
+  // --- UI Handlers (Dispatchers) ---
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
+
   const handleDragStart = (event: DragStartEvent) => {
     setActiveId(event.active.id as string);
   };
 
-  const handleDragOver = () => {};
-
+  const handleDragOver = () => {
+    // Visual only, no state update
+  };
+  
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
     setActiveId(null);
     if (!over) return;
-    handleAction('MOVE_POKEMON', { activeId: active.id, overId: over.id });
+    dispatch('MOVE_POKEMON', { activeId: active.id, overId: over.id });
   };
 
   const handleCatch = async (routeId: string, p1Species: string, p2Species: string, p3Species: string) => {
@@ -266,6 +275,14 @@ function App() {
       getDexId(p1Species), getDexId(p2Species), getDexId(p3Species)
     ]);
     
+    // We can't access 'state' reactively here easily if we use 'dispatch' with Client mode
+    // because performAction happens on Host.
+    // Client constructs the attempt.
+    // Logic for "Box vs Party" allocation:
+    // Client can assume based on their local view. If they are slightly desynced, Host will correct it?
+    // No, 'status' is part of the Pokemon object.
+    
+    // Simplest: Check local state for party size.
     const p1PartySize = state.pokemon.filter(p => p.owner === 'player1' && p.status === 'party').length;
     const p2PartySize = state.pokemon.filter(p => p.owner === 'player2' && p.status === 'party').length;
     const p3PartySize = state.pokemon.filter(p => p.owner === 'player3' && p.status === 'party').length;
@@ -284,31 +301,15 @@ function App() {
       id: uuidv4(), species: p3Species, dexId: p3Dex, nickname: '', owner: 'player3', status: statusP3, pairId, route: routeId
     };
 
-    handleAction('CATCH_POKEMON', { 
+    dispatch('CATCH_POKEMON', { 
          routeId, 
          pokemons: [newP1, newP2, newP3] 
     });
   };
 
   const updateRoute = (routeId: string, updates: Partial<Route>) => {
-      handleAction('UPDATE_ROUTE', { routeId, updates });
+      dispatch('UPDATE_ROUTE', { routeId, updates });
   };
-
-  const updatePokemon = (id: string, updates: Partial<Pokemon>) => {
-      handleAction('UPDATE_POKEMON', { id, updates });
-  };
-  
-  const updateName = (player: 'player1' | 'player2' | 'player3', name: string) => {
-      handleAction('UPDATE_PLAYER_NAME', { player, name });
-  };
-
-  const resetData = () => {
-    if (window.confirm("Are you sure you want to completely reset the Soul Link? This will delete all Pokémon and progress. Player names will be kept.")) {
-        handleAction('RESET', null);
-    }
-  };
-
-
 
   const exportData = () => {
     const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(state));
@@ -332,7 +333,7 @@ function App() {
           try {
               const json = JSON.parse(event.target?.result as string);
               if (json.pokemon && json.routes) {
-                  handleAction('IMPORT', json);
+                  dispatch('IMPORT', json);
               }
           } catch (err) {
               alert('Invalid Save File');
@@ -342,7 +343,21 @@ function App() {
   };
 
   const getActivePokemon = () => {
-      return state.pokemon.find(p => p.id === activeId);
+    return state.pokemon.find(p => p.id === activeId);
+  };
+
+  const updatePokemon = (id: string, updates: Partial<Pokemon>) => {
+      dispatch('UPDATE_POKEMON', { id, updates });
+  };
+  
+  const updateName = (player: 'player1' | 'player2' | 'player3', name: string) => {
+      dispatch('UPDATE_PLAYER_NAME', { player, name });
+  };
+
+  const resetData = () => {
+    if (window.confirm("Are you sure you want to completely reset the Soul Link? This will delete all Pokémon and progress. Player names will be kept.")) {
+        dispatch('RESET', null);
+    }
   };
 
   const deaths = {
@@ -352,159 +367,129 @@ function App() {
   };
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-100 font-sans selection:bg-emerald-500/30">
-      <header className="sticky top-0 z-40 w-full border-b border-zinc-800 bg-zinc-950/80 backdrop-blur supports-[backdrop-filter]:bg-zinc-950/60">
-        <div className="container mx-auto px-4 h-16 flex items-center justify-between">
-          <div className="flex flex-col">
-            <h1 className="text-xl font-bold tracking-tight bg-gradient-to-r from-emerald-400 to-cyan-400 bg-clip-text text-transparent">
-              SoulLinker
-            </h1>
-            <span className="text-[10px] text-zinc-500 font-mono tracking-wider uppercase">Unova Link v2.0</span>
-          </div>
-          
-          <div className="flex items-center gap-4">
-             {/* Death Counters - Compact */}
-             <div className="hidden md:flex items-center gap-1 bg-zinc-900 border border-zinc-800 rounded-md px-3 py-1.5">
-                 <div className="flex items-center gap-2 pr-3 border-r border-zinc-800">
-                     <span className="w-2 h-2 rounded-full bg-blue-500"></span>
-                     <span className="text-xs font-medium text-zinc-400" title={state.playerNames?.player1}>P1: <span className="text-zinc-100">{deaths.p1}</span></span>
-                 </div>
-                 <div className="flex items-center gap-2 px-3 border-r border-zinc-800">
-                     <span className="w-2 h-2 rounded-full bg-red-500"></span>
-                     <span className="text-xs font-medium text-zinc-400" title={state.playerNames?.player2}>P2: <span className="text-zinc-100">{deaths.p2}</span></span>
-                 </div>
-                 <div className="flex items-center gap-2 pl-3">
-                     <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-                     <span className="text-xs font-medium text-zinc-400" title={state.playerNames?.player3}>P3: <span className="text-zinc-100">{deaths.p3}</span></span>
-                 </div>
+    <div className="min-h-screen bg-gray-900 text-white p-4 md:p-8 font-sans">
+      <header className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
+        <div>
+          <h1 className="text-4xl font-extrabold bg-gradient-to-r from-blue-400 via-purple-400 to-green-400 bg-clip-text text-transparent">
+            Soul Link Tracker
+          </h1>
+          <p className="text-gray-400 text-sm mt-1">Pokémon Black Soul Link Challenge (3 Players)</p>
+        </div>
+        
+        {/* Death Counters */}
+        <div className="flex gap-4 bg-gray-800 p-2 rounded-lg border border-gray-700">
+             <div className="flex flex-col items-center px-2 min-w-[80px]">
+                 <span className="text-xs text-blue-400 font-bold uppercase truncate max-w-[100px]" title={state.playerNames?.player1}>{state.playerNames?.player1 || 'P1'}</span>
+                 <span className="text-xl font-mono">{deaths.p1}</span>
              </div>
-
-             <div className="flex items-center gap-2">
-                <SyncManager 
-                  sessionId={sessionId}
-                  isConnected={isConnected}
-                  userCount={userCount}
-                  createSession={createSession}
-                  joinSession={joinSession}
-                  leaveSession={leaveSession}
-                />
-                
-                <div className="h-6 w-px bg-zinc-800 mx-1"></div>
-
-                <div className="flex items-center gap-1">
-                  <button onClick={resetData} className="p-2 text-zinc-400 hover:text-red-400 hover:bg-zinc-900 rounded-md transition" title="Reset All Progress">
-                    <RotateCcw size={16} />
-                  </button>
-                  <button onClick={exportData} className="p-2 text-zinc-400 hover:text-blue-400 hover:bg-zinc-900 rounded-md transition" title="Save Backup">
-                    <Save size={16} />
-                  </button>
-                  <input type="file" id="import-file" className="hidden" onChange={handleImport} accept=".json" />
-                  <button onClick={triggerImport} className="p-2 text-zinc-400 hover:text-emerald-400 hover:bg-zinc-900 rounded-md transition" title="Load Backup">
-                    <Upload size={16} />
-                  </button>
-                </div>
+             <div className="w-px bg-gray-700"></div>
+             <div className="flex flex-col items-center px-2 min-w-[80px]">
+                 <span className="text-xs text-red-400 font-bold uppercase truncate max-w-[100px]" title={state.playerNames?.player2}>{state.playerNames?.player2 || 'P2'}</span>
+                 <span className="text-xl font-mono">{deaths.p2}</span>
              </div>
-          </div>
+             <div className="w-px bg-gray-700"></div>
+             <div className="flex flex-col items-center px-2 min-w-[80px]">
+                 <span className="text-xs text-green-400 font-bold uppercase truncate max-w-[100px]" title={state.playerNames?.player3}>{state.playerNames?.player3 || 'P3'}</span>
+                 <span className="text-xl font-mono">{deaths.p3}</span>
+             </div>
+        </div>
+
+        <div className="flex gap-3">
+          <SyncManager 
+             peerId={peerId} 
+             mode={mode} 
+             connectionCount={connectionCount} 
+             startHosting={startHosting} 
+             joinSession={joinSession} 
+          />
+          <button onClick={resetData} className="flex items-center gap-2 bg-red-600 hover:bg-red-500 px-4 py-2 rounded-lg font-semibold transition shadow-lg shadow-red-900/20" title="Reset All Progress">
+            <RotateCcw size={18} />
+          </button>
+          <button onClick={exportData} className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 px-4 py-2 rounded-lg font-semibold transition shadow-lg shadow-blue-900/20">
+            <Save size={18} />
+          </button>
+          <input type="file" id="import-file" className="hidden" onChange={handleImport} accept=".json" />
+          <button onClick={triggerImport} className="flex items-center gap-2 bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded-lg font-semibold transition border border-gray-600">
+            <Upload size={18} />
+          </button>
         </div>
       </header>
 
-      <main className="container mx-auto px-4 py-8">
-        <DndContext 
-          sensors={sensors}
-          collisionDetection={closestCenter}
-          onDragStart={handleDragStart}
-          onDragEnd={handleDragEnd}
-          onDragOver={handleDragOver}
-        >
-          <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-            {/* Player 1 Area */}
-            <div className="bg-zinc-900/40 rounded-xl border border-zinc-800 overflow-hidden">
-              <div className="bg-zinc-900/60 border-b border-zinc-800 text-sm font-medium text-zinc-400 px-4 py-3 flex items-center justify-between">
-                 <div className="flex items-center gap-3 flex-1">
-                    <div className="w-2 h-2 rounded-full bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.6)]"></div>
-                    <input 
-                      className="bg-transparent border-none text-zinc-200 focus:outline-none focus:ring-0 w-full font-bold placeholder:text-zinc-600"
-                      value={state.playerNames?.player1 || 'Player 1'}
-                      onChange={(e) => updateName('player1', e.target.value)}
-                      placeholder="Player 1 Name"
-                    />
-                 </div>
-                 <span className="text-xs px-2 py-0.5 bg-blue-500/10 text-blue-400 rounded">Host</span>
-              </div>
-              <div className="p-4 space-y-6">
-                <Party player="player1" pokemon={state.pokemon.filter(p => p.owner === 'player1' && p.status === 'party')} />
-                <Box player="player1" pokemon={state.pokemon.filter(p => p.owner === 'player1' && p.status === 'box')} />
-              </div>
+      <DndContext 
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragStart={handleDragStart}
+        onDragEnd={handleDragEnd}
+        onDragOver={handleDragOver}
+      >
+        <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
+          {/* Player 1 Area */}
+          <div className="bg-gray-800/50 p-6 rounded-2xl border border-blue-500/20 shadow-xl backdrop-blur-sm">
+            <div className="flex items-center gap-3 mb-6 border-b border-gray-700 pb-4">
+               <div className="w-4 h-4 rounded-full bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.5)]"></div>
+               <input 
+                  className="text-2xl font-bold text-white bg-transparent border-b border-transparent hover:border-white/20 focus:border-white focus:outline-none w-full"
+                  value={state.playerNames?.player1 || 'Player 1'}
+                  onChange={(e) => updateName('player1', e.target.value)}
+                />
             </div>
+            <Party player="player1" pokemon={state.pokemon.filter(p => p.owner === 'player1' && p.status === 'party')} />
+            <Box player="player1" pokemon={state.pokemon.filter(p => p.owner === 'player1' && p.status === 'box')} />
+          </div>
 
-            {/* Player 2 Area */}
-            <div className="bg-zinc-900/40 rounded-xl border border-zinc-800 overflow-hidden">
-              <div className="bg-zinc-900/60 border-b border-zinc-800 text-sm font-medium text-zinc-400 px-4 py-3 flex items-center justify-between">
-                 <div className="flex items-center gap-3 flex-1">
-                    <div className="w-2 h-2 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.6)]"></div>
-                    <input 
-                      className="bg-transparent border-none text-zinc-200 focus:outline-none focus:ring-0 w-full font-bold placeholder:text-zinc-600"
-                      value={state.playerNames?.player2 || 'Player 2'}
-                      onChange={(e) => updateName('player2', e.target.value)}
-                      placeholder="Player 2 Name"
-                    />
-                 </div>
-              </div>
-              <div className="p-4 space-y-6">
-                <Party player="player2" pokemon={state.pokemon.filter(p => p.owner === 'player2' && p.status === 'party')} />
-                <Box player="player2" pokemon={state.pokemon.filter(p => p.owner === 'player2' && p.status === 'box')} />
-              </div>
+          {/* Player 2 Area */}
+          <div className="bg-gray-800/50 p-6 rounded-2xl border border-red-500/20 shadow-xl backdrop-blur-sm">
+             <div className="flex items-center gap-3 mb-6 border-b border-gray-700 pb-4">
+               <div className="w-4 h-4 rounded-full bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.5)]"></div>
+               <input 
+                  className="text-2xl font-bold text-white bg-transparent border-b border-transparent hover:border-white/20 focus:border-white focus:outline-none w-full"
+                  value={state.playerNames?.player2 || 'Player 2'}
+                  onChange={(e) => updateName('player2', e.target.value)}
+                />
             </div>
-            
-            {/* Player 3 Area */}
-            <div className="bg-zinc-900/40 rounded-xl border border-zinc-800 overflow-hidden">
-              <div className="bg-zinc-900/60 border-b border-zinc-800 text-sm font-medium text-zinc-400 px-4 py-3 flex items-center justify-between">
-                 <div className="flex items-center gap-3 flex-1">
-                    <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]"></div>
-                    <input 
-                      className="bg-transparent border-none text-zinc-200 focus:outline-none focus:ring-0 w-full font-bold placeholder:text-zinc-600"
-                      value={state.playerNames?.player3 || 'Player 3'}
-                      onChange={(e) => updateName('player3', e.target.value)}
-                      placeholder="Player 3 Name"
-                    />
-                 </div>
-              </div>
-              <div className="p-4 space-y-6">
-                <Party player="player3" pokemon={state.pokemon.filter(p => p.owner === 'player3' && p.status === 'party')} />
-                <Box player="player3" pokemon={state.pokemon.filter(p => p.owner === 'player3' && p.status === 'box')} />
-              </div>
-            </div>
+            <Party player="player2" pokemon={state.pokemon.filter(p => p.owner === 'player2' && p.status === 'party')} />
+            <Box player="player2" pokemon={state.pokemon.filter(p => p.owner === 'player2' && p.status === 'box')} />
           </div>
           
-          <div className="mt-6 bg-zinc-900/20 border-t border-b md:border border-zinc-800 md:rounded-xl p-6">
-            <div className="flex items-center gap-3 mb-4">
-               <div className="p-2 bg-purple-500/10 rounded-md">
-                 <div className="w-2 h-2 rounded-full bg-purple-500 shadow-[0_0_10px_rgba(168,85,247,0.5)]"></div>
-               </div>
-               <h2 className="text-lg font-semibold text-zinc-200">Graveyard</h2>
-               <span className="text-xs text-zinc-500 ml-auto font-mono">Rest in Peace</span>
+          {/* Player 3 Area */}
+          <div className="bg-gray-800/50 p-6 rounded-2xl border border-green-500/20 shadow-xl backdrop-blur-sm">
+             <div className="flex items-center gap-3 mb-6 border-b border-gray-700 pb-4">
+               <div className="w-4 h-4 rounded-full bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.5)]"></div>
+               <input 
+                  className="text-2xl font-bold text-white bg-transparent border-b border-transparent hover:border-white/20 focus:border-white focus:outline-none w-full"
+                  value={state.playerNames?.player3 || 'Player 3'}
+                  onChange={(e) => updateName('player3', e.target.value)}
+                />
             </div>
-             <Box 
-                player="player1" 
-                isGraveyard 
-                pokemon={state.pokemon.filter(p => p.status === 'graveyard')} 
-                onUpdatePokemon={updatePokemon}
-             />
+            <Party player="player3" pokemon={state.pokemon.filter(p => p.owner === 'player3' && p.status === 'party')} />
+            <Box player="player3" pokemon={state.pokemon.filter(p => p.owner === 'player3' && p.status === 'box')} />
           </div>
-
-          <div className="mt-8">
-             <RouteTracker routes={state.routes} onUpdateRoute={updateRoute} onCatch={handleCatch} />
+        </div>
+        
+        <div className="mt-8 bg-gray-800/80 p-6 rounded-2xl border border-purple-500/20 shadow-xl">
+          <div className="flex items-center gap-3 mb-4">
+             <div className="w-4 h-4 rounded-full bg-purple-500 shadow-[0_0_10px_rgba(168,85,247,0.5)]"></div>
+             <h2 className="text-2xl font-bold text-gray-200">Graveyard</h2>
           </div>
+           {/* Shared Graveyard */}
+           <Box 
+              player="player1" 
+              isGraveyard 
+              pokemon={state.pokemon.filter(p => p.status === 'graveyard')} 
+              onUpdatePokemon={updatePokemon}
+           />
+        </div>
 
-          <DragOverlay>
-             {activeId ? (
-                  <div className="opacity-90 scale-105 shadow-2xl cursor-grabbing">
-                   <PokemonCard pokemon={getActivePokemon()!} />
-                  </div>
-              ) : null}
-          </DragOverlay>
-        </DndContext>
-      </main>
+        <RouteTracker routes={state.routes} onUpdateRoute={updateRoute} onCatch={handleCatch} />
+
+        <DragOverlay>
+           {activeId ? (
+                <div className="opacity-90 scale-105">
+                 <PokemonCard pokemon={getActivePokemon()!} />
+                </div>
+            ) : null}
+        </DragOverlay>
+      </DndContext>
     </div>
   )
 }
