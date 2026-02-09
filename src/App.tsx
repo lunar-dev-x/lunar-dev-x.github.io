@@ -136,16 +136,23 @@ function App() {
     });
   };
 
-  const handleCatch = async (routeId: string, p1Species: string, p2Species: string) => {
+  const handleCatch = async (routeId: string, p1Species: string, p2Species: string, p3Species: string) => {
     const pairId = uuidv4();
-    const [p1Dex, p2Dex] = await Promise.all([getDexId(p1Species), getDexId(p2Species)]);
+    const [p1Dex, p2Dex, p3Dex] = await Promise.all([
+      getDexId(p1Species), 
+      getDexId(p2Species),
+      getDexId(p3Species)
+    ]);
     
     // Determine where to put them. Party if < 6, else Box.
     const p1PartySize = state.pokemon.filter(p => p.owner === 'player1' && p.status === 'party').length;
     const p2PartySize = state.pokemon.filter(p => p.owner === 'player2' && p.status === 'party').length;
+    const p3PartySize = state.pokemon.filter(p => p.owner === 'player3' && p.status === 'party').length;
 
     const statusP1 = p1PartySize < 6 ? 'party' : 'box';
-    const statusP2 = p2PartySize < 6 ? 'party' : 'box'; // Independently check or sync? Usually sync.
+    const statusP2 = p2PartySize < 6 ? 'party' : 'box';
+    const statusP3 = p3PartySize < 6 ? 'party' : 'box';
+    
     // Sync status: if either party full, go to box? Or fill independently?
     // Let's fill independently.
 
@@ -171,9 +178,20 @@ function App() {
       route: routeId
     };
 
+    const newP3: Pokemon = {
+      id: uuidv4(),
+      species: p3Species,
+      dexId: p3Dex,
+      nickname: '',
+      owner: 'player3',
+      status: statusP3,
+      pairId,
+      route: routeId
+    };
+
     setState(prev => ({
       ...prev,
-      pokemon: [...prev.pokemon, newP1, newP2]
+      pokemon: [...prev.pokemon, newP1, newP2, newP3]
     }));
   };
 
@@ -223,10 +241,10 @@ function App() {
     <div className="min-h-screen bg-gray-900 text-white p-4 md:p-8 font-sans">
       <header className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
         <div>
-          <h1 className="text-4xl font-extrabold bg-gradient-to-r from-blue-400 via-purple-400 to-red-400 bg-clip-text text-transparent">
+          <h1 className="text-4xl font-extrabold bg-gradient-to-r from-blue-400 via-purple-400 to-green-400 bg-clip-text text-transparent">
             Soul Link Tracker
           </h1>
-          <p className="text-gray-400 text-sm mt-1">Pokémon Black Soul Link Challenge</p>
+          <p className="text-gray-400 text-sm mt-1">Pokémon Black Soul Link Challenge (3 Players)</p>
         </div>
         
         <div className="flex gap-3">
@@ -247,7 +265,7 @@ function App() {
         onDragEnd={handleDragEnd}
         onDragOver={handleDragOver}
       >
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
+        <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
           {/* Player 1 Area */}
           <div className="bg-gray-800/50 p-6 rounded-2xl border border-blue-500/20 shadow-xl backdrop-blur-sm">
             <div className="flex items-center gap-3 mb-6 border-b border-gray-700 pb-4">
@@ -266,6 +284,16 @@ function App() {
             </div>
             <Party player="player2" pokemon={state.pokemon.filter(p => p.owner === 'player2' && p.status === 'party')} />
             <Box player="player2" pokemon={state.pokemon.filter(p => p.owner === 'player2' && p.status === 'box')} />
+          </div>
+          
+          {/* Player 3 Area */}
+          <div className="bg-gray-800/50 p-6 rounded-2xl border border-green-500/20 shadow-xl backdrop-blur-sm">
+             <div className="flex items-center gap-3 mb-6 border-b border-gray-700 pb-4">
+               <div className="w-4 h-4 rounded-full bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.5)]"></div>
+               <h2 className="text-2xl font-bold text-white">Player 3</h2>
+            </div>
+            <Party player="player3" pokemon={state.pokemon.filter(p => p.owner === 'player3' && p.status === 'party')} />
+            <Box player="player3" pokemon={state.pokemon.filter(p => p.owner === 'player3' && p.status === 'box')} />
           </div>
         </div>
         

@@ -24,7 +24,10 @@ export const PokemonCard: React.FC<Props> = ({ pokemon }) => {
     opacity: isDragging ? 0.5 : 1,
   };
 
-  const borderColor = pokemon.owner === 'player1' ? 'border-blue-500' : 'border-red-500';
+  const borderColor = 
+    pokemon.owner === 'player1' ? 'border-blue-500' : 
+    pokemon.owner === 'player2' ? 'border-red-500' :
+    'border-green-500';
   
   // Generate a consistent color from pairId
   const getPairColor = (id: string) => {
