@@ -20,17 +20,17 @@ const Box: React.FC<Props> = ({ player, pokemon, isGraveyard = false, onUpdatePo
 
   return (
     <div>
-      <h3 className="text-sm uppercase tracking-wider text-gray-500 mb-2 font-bold flex justify-between">
+      <h3 className="text-xs uppercase tracking-wider text-zinc-500 mb-2 font-bold flex justify-between pl-1">
         <span>{isGraveyard ? 'Graveyard / Deaths' : 'PC Box'}</span>
         {isGraveyard && (
-          <span className="text-xs normal-case font-normal text-gray-400">
+          <span className="text-xs normal-case font-normal text-zinc-600">
              Click 'Set Blame' on cards to track deaths
           </span>
         )}
       </h3>
       <div 
         ref={setNodeRef}
-        className={`min-h-[150px] bg-gray-900/50 p-3 rounded-lg border-2 border-gray-700 ${isGraveyard ? 'border-purple-900/50 bg-purple-900/10' : ''}`}
+        className={`min-h-[150px] bg-zinc-950/40 p-3 rounded-lg border-2 border-zinc-800 transition-colors ${isGraveyard ? 'border-purple-900/30 bg-purple-900/5' : 'hover:border-zinc-700/80'}`}
       >
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
           <SortableContext 

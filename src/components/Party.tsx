@@ -17,10 +17,10 @@ const Party: React.FC<Props> = ({ player, pokemon }) => {
 
   return (
     <div className="mb-6">
-      <h3 className="text-sm uppercase tracking-wider text-gray-500 mb-2 font-bold">Party (6 Max)</h3>
+      <h3 className="text-xs uppercase tracking-wider text-zinc-500 mb-2 font-bold pl-1">Party (6 Max)</h3>
       <div 
         ref={setNodeRef}
-        className="grid grid-cols-1 sm:grid-cols-2 gap-3 min-h-[100px] bg-gray-900/50 p-3 rounded-lg border-dashed border-2 border-gray-700"
+        className="grid grid-cols-1 sm:grid-cols-2 gap-3 min-h-[100px] bg-zinc-950/40 p-3 rounded-lg border-2 border-dashed border-zinc-800 transition-colors hover:border-zinc-700/80"
       >
         <SortableContext 
           items={pokemon.map(p => p.id)}
@@ -30,7 +30,7 @@ const Party: React.FC<Props> = ({ player, pokemon }) => {
             <PokemonCard key={p.id} pokemon={p} />
           ))}
           {pokemon.length === 0 && (
-            <div className="col-span-full flex items-center justify-center text-gray-600 text-sm italic h-full">
+            <div className="col-span-full flex items-center justify-center text-zinc-600 text-sm italic h-full">
               Empty Party
             </div>
           )}
