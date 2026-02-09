@@ -51,22 +51,4 @@ const Box: React.FC<Props> = ({ player, pokemon, isGraveyard = false, onUpdatePo
   );
 };
 
-export default Box;            items={pokemon.map(p => p.id)}
-            strategy={rectSortingStrategy}
-          >
-            {pokemon.map(p => (
-              <PokemonCard key={p.id} pokemon={p} />
-            ))}
-          </SortableContext>
-        </div>
-        {pokemon.length === 0 && (
-          <div className="flex items-center justify-center text-gray-600 text-sm italic h-full py-8">
-            {isGraveyard ? 'No deaths yet...' : 'Empty Box'}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-};
-
 export default Box;
