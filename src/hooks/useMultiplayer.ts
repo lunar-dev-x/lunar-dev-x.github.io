@@ -91,12 +91,32 @@ export const useMultiplayer = (
   // Whenever the local AppState changes, we push to Firebase IF it wasn't a remote change.
   // We explicitly call this from App.tsx dispatch.
 
+  // Helper to deep sanitize object for Firebase (replaces undefined with null)
+  const sanitizeForFirebase = (obj: any): any => {
+    if (obj === undefined) return null;
+    if (obj === null) return null;
+    if (typeof obj !== 'object') return obj;
+    if (Array.isArray(obj)) return obj.map(sanitizeForFirebase);
+    
+    const newObj: any = {};
+    for (const key in obj) {
+        if (Object.prototype.hasOwnProperty.call(obj, key)) {
+            newObj[key] = sanitizeForFirebase(obj[key]);
+        }
+    }
+    return newObj;
+  };
+
   const syncState = useCallback((newState: AppState) => {
       // Only push if we are in a session AND the latest change wasn't from the cloud
       if (sessionId && !isRemoteUpdate.current) {
           const sessionRef = ref(db, `sessions/${sessionId}`);
           console.log("Pushing Local State to Cloud");
-          set(sessionRef, newState).catch(err => console.error("Sync Failed:", err));
+          
+          // CRITICAL: Sanitize state to remove any 'undefined' values which crash Firebase
+          const cleanState = sanitizeForFirebase(newState);
+          
+          set(sessionRef, cleanState).catch(err => console.error("Sync Failed:", err));
       }
   }, [sessionId]);
 
