@@ -21,6 +21,7 @@ export interface Route {
   encounterP2?: string; // ID of pokemon caught by P2
   encounterP3?: string; // ID of pokemon caught by P3
   status: 'caught' | 'failed' | 'empty' | 'skipped';
+  isCustom?: boolean;
 }
 
 export interface AppState {

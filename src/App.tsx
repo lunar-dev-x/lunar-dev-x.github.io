@@ -118,7 +118,12 @@ function App() {
 
   // --- Multiplayer Logic ---
   const handleStateReceived = (newState: AppState) => {
-    setState(newState);
+    setState({
+        ...newState,
+        pokemon: newState.pokemon || [],
+        routes: (newState.routes && newState.routes.length > 0) ? newState.routes : INITIAL_ROUTES,
+        playerNames: newState.playerNames || { player1: 'Player 1', player2: 'Player 2', player3: 'Player 3'}
+    });
   };
 
   const { sessionId, isConnected, userCount, createSession, joinSession, leaveSession, syncState } = useMultiplayer(state, handleStateReceived);
@@ -267,9 +272,9 @@ function App() {
       getDexId(p1Species), getDexId(p2Species), getDexId(p3Species)
     ]);
     
-    const p1PartySize = state.pokemon.filter(p => p.owner === 'player1' && p.status === 'party').length;
-    const p2PartySize = state.pokemon.filter(p => p.owner === 'player2' && p.status === 'party').length;
-    const p3PartySize = state.pokemon.filter(p => p.owner === 'player3' && p.status === 'party').length;
+    const p1PartySize = (state.pokemon || []).filter(p => p.owner === 'player1' && p.status === 'party').length;
+    const p2PartySize = (state.pokemon || []).filter(p => p.owner === 'player2' && p.status === 'party').length;
+    const p3PartySize = (state.pokemon || []).filter(p => p.owner === 'player3' && p.status === 'party').length;
 
     const statusP1 = p1PartySize < 6 ? 'party' : 'box';
     const statusP2 = p2PartySize < 6 ? 'party' : 'box';
@@ -315,6 +320,30 @@ function App() {
       handleAction('UPDATE_PLAYER_NAME', { player, name });
   };
 
+  const addCustomRoute = (name: string) => {
+    const newRoute: Route = {
+      id: uuidv4(),
+      name,
+      status: 'empty',
+      isCustom: true
+    };
+    updateState(prev => ({
+       ...prev,
+       routes: [...prev.routes, newRoute]
+    }));
+  };
+
+  const deleteRoute = (id: string) => {
+      updateState(prev => ({
+          ...prev,
+          routes: prev.routes.filter(r => r.id !== id)
+      }));
+  };
+
+  const reorderRoutes = (newRoutes: Route[]) => {
+      updateState(prev => ({ ...prev, routes: newRoutes }));
+  };
+
   const resetData = () => {
     if (window.confirm("Are you sure you want to completely reset the Soul Link? This will delete all Pokémon and progress. Player names will be kept.")) {
         handleAction('RESET', null);
@@ -354,14 +383,18 @@ function App() {
       reader.readAsText(file);
   };
 
+  const getPokemon = (player: Player, status: PokemonStatus) => {
+    return (state.pokemon || []).filter(p => p.owner === player && p.status === status);
+  };
+  
   const getActivePokemon = () => {
-      return state.pokemon.find(p => p.id === activeId);
+      return (state.pokemon || []).find(p => p.id === activeId);
   };
 
   const deaths = {
-      p1: state.pokemon.filter(p => p.status === 'graveyard' && p.killedBy === 'player1').length,
-      p2: state.pokemon.filter(p => p.status === 'graveyard' && p.killedBy === 'player2').length,
-      p3: state.pokemon.filter(p => p.status === 'graveyard' && p.killedBy === 'player3').length,
+      p1: (state.pokemon || []).filter(p => p.status === 'graveyard' && p.killedBy === 'player1').length,
+      p2: (state.pokemon || []).filter(p => p.status === 'graveyard' && p.killedBy === 'player2').length,
+      p3: (state.pokemon || []).filter(p => p.status === 'graveyard' && p.killedBy === 'player3').length,
   };
 
   return (
@@ -455,8 +488,8 @@ function App() {
                  <span className="text-xs px-2 py-0.5 bg-blue-500/10 text-blue-400 rounded">Host</span>
               </div>
               <div className="p-4 space-y-6">
-                <Party player="player1" pokemon={state.pokemon.filter(p => p.owner === 'player1' && p.status === 'party')} />
-                <Box player="player1" pokemon={state.pokemon.filter(p => p.owner === 'player1' && p.status === 'box')} />
+                <Party player="player1" pokemon={getPokemon('player1', 'party')} />
+                <Box player="player1" pokemon={getPokemon('player1', 'box')} />
               </div>
             </div>
 
@@ -474,8 +507,8 @@ function App() {
                  </div>
               </div>
               <div className="p-4 space-y-6">
-                <Party player="player2" pokemon={state.pokemon.filter(p => p.owner === 'player2' && p.status === 'party')} />
-                <Box player="player2" pokemon={state.pokemon.filter(p => p.owner === 'player2' && p.status === 'box')} />
+                <Party player="player2" pokemon={getPokemon('player2', 'party')} />
+                <Box player="player2" pokemon={getPokemon('player2', 'box')} />
               </div>
             </div>
             
@@ -493,8 +526,8 @@ function App() {
                  </div>
               </div>
               <div className="p-4 space-y-6">
-                <Party player="player3" pokemon={state.pokemon.filter(p => p.owner === 'player3' && p.status === 'party')} />
-                <Box player="player3" pokemon={state.pokemon.filter(p => p.owner === 'player3' && p.status === 'box')} />
+                <Party player="player3" pokemon={getPokemon('player3', 'party')} />
+                <Box player="player3" pokemon={getPokemon('player3', 'box')} />
               </div>
             </div>
           </div>
@@ -510,17 +543,24 @@ function App() {
              <Box 
                 player="player1" 
                 isGraveyard 
-                pokemon={state.pokemon.filter(p => p.status === 'graveyard')} 
+                pokemon={(state.pokemon || []).filter(p => p.status === 'graveyard')} 
                 onUpdatePokemon={updatePokemon}
              />
           </div>
 
           <div className="mt-8">
-             <RouteTracker routes={state.routes} onUpdateRoute={updateRoute} onCatch={handleCatch} />
+             <RouteTracker 
+                routes={state.routes} 
+                onUpdateRoute={updateRoute} 
+                onCatch={handleCatch} 
+                onAddRoute={addCustomRoute}
+                onDeleteRoute={deleteRoute}
+                onReorderRoutes={reorderRoutes}
+             />
           </div>
 
           <DragOverlay>
-             {activeId ? (
+             {activeId && getActivePokemon() ? (
                   <div className="opacity-90 scale-105 shadow-2xl cursor-grabbing">
                    <PokemonCard pokemon={getActivePokemon()!} />
                   </div>
