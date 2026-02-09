@@ -18,12 +18,14 @@ const AutocompleteInput: React.FC<Props> = ({ value, onChange, options, placehol
     // If we have a value, filter. If empty, maybe show nothing or generic?
     if (value) {
       const lower = value.toLowerCase();
-      // Simple includes check
-      const matches = options.filter(opt => opt.includes(lower));
+      // Case insensitive check
+      const matches = options.filter(opt => opt.toLowerCase().includes(lower));
       // Sort matches: startsWith first, then others
       matches.sort((a, b) => {
-        const aStarts = a.startsWith(lower);
-        const bStarts = b.startsWith(lower);
+        const aLower = a.toLowerCase();
+        const bLower = b.toLowerCase();
+        const aStarts = aLower.startsWith(lower);
+        const bStarts = bLower.startsWith(lower);
         if (aStarts && !bStarts) return -1;
         if (!aStarts && bStarts) return 1;
         return a.localeCompare(b);
