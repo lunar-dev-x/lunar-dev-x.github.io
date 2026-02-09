@@ -1,182 +1,157 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
-import Peer, { DataConnection } from 'peerjs';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { db } from '../firebase';
+import { ref, onValue, set, push, child, get, onDisconnect } from 'firebase/database';
 import { AppState } from '../types';
-
-type SyncMode = 'offline' | 'host' | 'client';
 
 export const useMultiplayer = (
   currentState: AppState,
-  onStateReceived: (state: AppState) => void,
-  onActionReceived: (action: { type: string; payload: any }) => void
+  onStateReceived: (state: AppState) => void
 ) => {
-  const [peerId, setPeerId] = useState<string>('');
-  const [mode, setMode] = useState<SyncMode>('offline');
-  const [connections, setConnections] = useState<DataConnection[]>([]);
-  const peerRef = useRef<Peer | null>(null);
-  const connRef = useRef<DataConnection | null>(null); // For client
+  const [sessionId, setSessionId] = useState<string>('');
+  const [isConnected, setIsConnected] = useState(false);
+  const [isHost, setIsHost] = useState(false);
+  const [userCount, setUserCount] = useState<number>(0);
   
-  // Refs for handlers to avoid stale closures in PeerJS listeners
-  const onStateReceivedRef = useRef(onStateReceived);
-  const onActionReceivedRef = useRef(onActionReceived);
-  
-  useEffect(() => { onStateReceivedRef.current = onStateReceived; }, [onStateReceived]);
-  useEffect(() => { onActionReceivedRef.current = onActionReceived; }, [onActionReceived]);
+  // Flag to prevent echo loops (Local -> Firebase -> Local -> Firebase)
+  const isRemoteUpdate = useRef(false);
 
-  const stateRef = useRef(currentState);
-  useEffect(() => { stateRef.current = currentState; }, [currentState]);
-
-  const initializePeer = useCallback(() => {
-    if (peerRef.current) return peerRef.current;
-
-    const peer = new Peer({
-      config: {
-        iceServers: [
-          { urls: 'stun:stun.l.google.com:19302' },
-          { urls: 'stun:stun1.l.google.com:19302' },
-          { urls: 'stun:stun2.l.google.com:19302' },
-          { urls: 'stun:stun3.l.google.com:19302' },
-          { urls: 'stun:stun4.l.google.com:19302' },
-        ],
-        iceCandidatePoolSize: 10,
-      },
-      debug: 1 // Reduces log spam, increase to 3 for debugging
-    });
-
-    peer.on('open', (id) => {
-        setPeerId(id);
-    });
-
-    peer.on('connection', (conn) => {
-        console.log('Incoming connection from', conn.peer);
-        
-        conn.on('open', () => {
-             console.log('Peer connected (Host side):', conn.peer);
-             setConnections(prev => {
-                 if(prev.find(c => c.peer === conn.peer)) return prev;
-                 return [...prev, conn];
-             });
-             // Send initial state using Ref
-             conn.send({ type: 'SYNC_STATE', payload: stateRef.current });
-        });
-
-        conn.on('data', (data: any) => {
-            if (data.type === 'ACTION') {
-                onActionReceivedRef.current(data.payload);
-            }
-        });
-
-        conn.on('close', () => {
-            setConnections(prev => prev.filter(c => c.peer !== conn.peer));
-        });
-        
-        conn.on('error', (err) => {
-             console.error('Connection level error:', err);
-        });
-    });
-    
-    peer.on('error', (err) => {
-        console.error('Peer error:', err);
-    });
-
-    peerRef.current = peer;
-    return peer;
-  }, []); // Removed dependencies, using refs
-
-  const startHosting = useCallback(() => {
-      setMode('host');
-      initializePeer();
-  }, [initializePeer]);
-
-  const joinSession = useCallback((hostId: string) => {
-      setMode('client');
-      // Cleanup old peer if exists? Usually not needed if we are just switching modes
-      
-      const peer = new Peer({
-          config: {
-            iceServers: [
-                { urls: 'stun:stun.l.google.com:19302' },
-                { urls: 'stun:stun1.l.google.com:19302' },
-                { urls: 'stun:stun2.l.google.com:19302' }
-            ]
-          }
-      });
-      peerRef.current = peer;
-      
-      peer.on('open', () => {
-          const conn = peer.connect(hostId, { reliable: true });
-          
-          conn.on('open', () => {
-              console.log('Connected to host');
-              connRef.current = conn;
-              setPeerId(peer.id);
-          });
-          
-          conn.on('data', (data: any) => {
-              if (data.type === 'SYNC_STATE') {
-                  // Validate payload before applying
-                  if (data.payload && data.payload.routes && data.payload.pokemon) {
-                     onStateReceivedRef.current(data.payload);
-                  }
-              }
-          });
-
-          conn.on('close', () => {
-              alert('Disconnected from host');
-              setMode('offline');
-              setConnections([]);
-          });
-          
-          conn.on('error', (err) => {
-              console.error('Client Connection Error:', err);
-          });
-      });
-
-      peer.on('error', (err) => {
-          console.error(err);
-          alert('Connection error: ' + err.type);
-      });
-  }, []); 
-
-  const broadcastState = useCallback((state: AppState) => {
-      if (mode === 'host') {
-          connections.forEach(conn => {
-              if (conn.open) {
-                try {
-                    conn.send({ type: 'SYNC_STATE', payload: state });
-                } catch (e) {
-                    console.error('Failed to broadcast to', conn.peer, e);
-                }
-              }
-          });
-      }
-  }, [mode, connections]);
-
-  const sendAction = useCallback((type: string, payload: any) => {
-      if (mode === 'client' && connRef.current && connRef.current.open) {
-          try {
-             connRef.current.send({ type: 'ACTION', payload: { type, payload } });
-          } catch (e) {
-              console.error('Failed to send action', e);
-              alert('Failed to send action to host. Connection might be unstable.');
-          }
-      } else {
-          console.warn('Cannot send action, not connected');
-      }
-  }, [mode]);
-  
-  // Broadcast when state changes
-  useEffect(() => {
-     if (mode === 'host') {
-         broadcastState(currentState);
+  // 1. Create a Session (Host)
+  const createSession = useCallback(async () => {
+     try {
+         // Create a new unique ID
+         const newSessionRef = push(child(ref(db), 'sessions'));
+         const id = newSessionRef.key;
+         
+         if (id) {
+             // Upload initial state
+             await set(newSessionRef, currentState);
+             setSessionId(id);
+             setIsHost(true);
+             setIsConnected(true);
+             return id;
+         }
+     } catch (err) {
+         console.error("Firebase Create Error:", err);
+         alert("Failed to create session in cloud.");
      }
-  }, [currentState, mode, broadcastState]);
+     return null;
+  }, [currentState]);
+
+  // 2. Join a Session (Client)
+  const joinSession = useCallback(async (id: string) => {
+      try {
+          const sessionRef = ref(db, `sessions/${id}`);
+          const snapshot = await get(sessionRef);
+          
+          if (snapshot.exists()) {
+             setSessionId(id);
+             setIsHost(false);
+             setIsConnected(true);
+             // Initial load
+             const val = snapshot.val();
+             if (val && val.pokemon) { // Simple validation
+                 isRemoteUpdate.current = true;
+                 onStateReceived(val);
+             }
+          } else {
+              alert("Session ID not found.");
+          }
+      } catch (err) {
+           console.error("Firebase Join Error:", err);
+           alert("Failed to join session.");
+      }
+  }, [onStateReceived]);
+
+  // 3. Listen for Updates (Both)
+  useEffect(() => {
+     if (!sessionId) return;
+
+     const sessionRef = ref(db, `sessions/${sessionId}`);
+     const unsubscribe = onValue(sessionRef, (snapshot) => {
+         const val = snapshot.val();
+         if (val) {
+             // We received data from cloud.
+             // We must apply it, but ensure we don't trigger a push back to cloud immediately.
+             console.log("Cloud Update Received");
+             isRemoteUpdate.current = true;
+             onStateReceived(val);
+             
+             // Reset flag after a tick, to allow future local changes to push
+             // We use a slightly longer timeout to account for React render cycle
+             setTimeout(() => {
+                 isRemoteUpdate.current = false;
+             }, 100); 
+         }
+     });
+
+     return () => unsubscribe();
+  }, [sessionId, onStateReceived]);
+
+  // 4. Push Updates (Both)
+  // Whenever the local AppState changes, we push to Firebase IF it wasn't a remote change.
+  // We explicitly call this from App.tsx dispatch.
+
+  const syncState = useCallback((newState: AppState) => {
+      // Only push if we are in a session AND the latest change wasn't from the cloud
+      if (sessionId && !isRemoteUpdate.current) {
+          const sessionRef = ref(db, `sessions/${sessionId}`);
+          console.log("Pushing Local State to Cloud");
+          set(sessionRef, newState).catch(err => console.error("Sync Failed:", err));
+      }
+  }, [sessionId]);
+
+  // 5. Manage User Presence
+  useEffect(() => {
+    if (!sessionId) return;
+
+    // Detect when we connect to Firebase
+    const connectedRef = ref(db, '.info/connected');
+    const usersRef = ref(db, `sessions/${sessionId}/activeUsers`);
+    
+    // Create a generic reference for this user
+    const myUserRef = push(usersRef);
+
+    const unsubConnected = onValue(connectedRef, (snap) => {
+        if (snap.val() === true) {
+            // We are connected, add ourselves to the list
+            set(myUserRef, true);
+            // If we disconnect (close tab), remove ourselves
+            onDisconnect(myUserRef).remove();
+        }
+    });
+
+    // Listen for count of users
+    const unsubUsers = onValue(usersRef, (snap) => {
+        if (snap.exists()) {
+            setUserCount(Object.keys(snap.val()).length);
+        } else {
+            setUserCount(0);
+        }
+    });
+
+    return () => {
+        unsubConnected();
+        unsubUsers();
+        set(myUserRef, null); // Clean up immediately on unmount/leave
+    };
+  }, [sessionId]);
+
+  const leaveSession = useCallback(() => {
+      setSessionId('');
+      setIsConnected(false);
+      setIsHost(false);
+      isRemoteUpdate.current = false;
+      setUserCount(0);
+  }, []);
 
   return {
-    peerId,
-    mode,
-    connectionCount: connections.length,
-    startHosting,
-    joinSession,
-    sendAction
+      sessionId,
+      isConnected,
+      isHost,
+      userCount,
+      createSession,
+      joinSession,
+      leaveSession,
+      syncState
   };
 };
