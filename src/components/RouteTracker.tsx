@@ -1,6 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Route } from '../types';
 import { Check, X, Circle } from 'lucide-react';
+import { getAllPokemonNames } from '../utils/pokeApi';
+import AutocompleteInput from './AutocompleteInput';
 
 interface Props {
   routes: Route[];
@@ -13,6 +15,15 @@ const RouteTracker: React.FC<Props> = ({ routes, onUpdateRoute, onCatch }) => {
   const [p1Input, setP1Input] = useState('');
   const [p2Input, setP2Input] = useState('');
   const [p3Input, setP3Input] = useState('');
+  const [pokemonList, setPokemonList] = useState<string[]>([]);
+
+  useEffect(() => {
+    getAllPokemonNames().then(names => {
+        // Capitalize names for better UX
+        const capitalized = names.map(n => n.charAt(0).toUpperCase() + n.slice(1));
+        setPokemonList(capitalized);
+    });
+  }, []);
 
   const handleStartEdit = (route: Route) => {
     setEditingId(route.id);
@@ -26,6 +37,7 @@ const RouteTracker: React.FC<Props> = ({ routes, onUpdateRoute, onCatch }) => {
       onCatch(routeId, p1Input, p2Input, p3Input);
     }
     const allEntered = p1Input && p2Input && p3Input;
+    // ... rest of save logic
     onUpdateRoute(routeId, { 
       encounterP1: p1Input, 
       encounterP2: p2Input, 
@@ -58,12 +70,13 @@ const RouteTracker: React.FC<Props> = ({ routes, onUpdateRoute, onCatch }) => {
                   <td className="py-3 px-4 font-medium">{route.name}</td>
                   
                   {/* P1 Input */}
-                  <td className="py-3 px-4">
+                  <td className="py-3 px-4 relative">
                     {isEditing ? (
-                      <input 
+                      <AutocompleteInput 
                         className="bg-gray-900 border border-gray-600 rounded px-2 py-1 text-sm w-full text-blue-200 focus:border-blue-500 outline-none"
                         value={p1Input}
-                        onChange={(e) => setP1Input(e.target.value)}
+                        onChange={setP1Input}
+                        options={pokemonList}
                         placeholder="Pokemon Name"
                       />
                     ) : (
@@ -72,12 +85,13 @@ const RouteTracker: React.FC<Props> = ({ routes, onUpdateRoute, onCatch }) => {
                   </td>
 
                   {/* P2 Input */}
-                  <td className="py-3 px-4">
+                  <td className="py-3 px-4 relative">
                     {isEditing ? (
-                      <input 
+                      <AutocompleteInput 
                         className="bg-gray-900 border border-gray-600 rounded px-2 py-1 text-sm w-full text-red-200 focus:border-red-500 outline-none"
                         value={p2Input}
-                        onChange={(e) => setP2Input(e.target.value)}
+                        onChange={setP2Input}
+                        options={pokemonList}
                         placeholder="Pokemon Name"
                       />
                     ) : (
@@ -86,12 +100,13 @@ const RouteTracker: React.FC<Props> = ({ routes, onUpdateRoute, onCatch }) => {
                   </td>
 
                   {/* P3 Input */}
-                  <td className="py-3 px-4">
+                  <td className="py-3 px-4 relative">
                     {isEditing ? (
-                      <input 
+                      <AutocompleteInput 
                         className="bg-gray-900 border border-gray-600 rounded px-2 py-1 text-sm w-full text-green-200 focus:border-green-500 outline-none"
                         value={p3Input}
-                        onChange={(e) => setP3Input(e.target.value)}
+                        onChange={setP3Input}
+                        options={pokemonList}
                         placeholder="Pokemon Name"
                       />
                     ) : (
@@ -103,18 +118,36 @@ const RouteTracker: React.FC<Props> = ({ routes, onUpdateRoute, onCatch }) => {
                   <td className="py-3 px-4">
                      {route.status === 'caught' && <span className="flex items-center gap-1 text-green-400 text-xs uppercase font-bold"><Check size={14}/> Caught</span>}
                      {route.status === 'failed' && <span className="flex items-center gap-1 text-red-400 text-xs uppercase font-bold"><X size={14}/> Failed</span>}
+                     {route.status === 'skipped' && <span className="flex items-center gap-1 text-gray-400 text-xs uppercase font-bold"><Circle size={14}/> Skipped</span>}
                      {route.status === 'empty' && <span className="flex items-center gap-1 text-gray-500 text-xs uppercase font-bold"><Circle size={14}/> Open</span>}
                   </td>
 
                   {/* Actions */}
-                  <td className="py-3 px-4">
+                  <td className="py-3 px-4 flex gap-2">
                     {isEditing ? (
-                      <button 
-                        onClick={() => handleSave(route.id)}
-                        className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-xs"
-                      >
-                        Confirm
-                      </button>
+                      <>
+                        <button 
+                          onClick={() => handleSave(route.id)}
+                          className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-xs"
+                        >
+                          Confirm
+                        </button>
+                         <button 
+                          onClick={() => {
+                            onUpdateRoute(route.id, { 
+                                encounterP1: undefined, 
+                                encounterP2: undefined, 
+                                encounterP3: undefined, 
+                                status: 'skipped' // User asked for skip/fail option
+                            });
+                            setEditingId(null);
+                          }}
+                          className="bg-gray-700 hover:bg-red-600/50 text-white px-3 py-1 rounded text-xs"
+                          title="Skip/Fail this encounter"
+                        >
+                          Skip
+                        </button>
+                      </>
                     ) : (
                       <button 
                         onClick={() => handleStartEdit(route)}

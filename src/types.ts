@@ -11,6 +11,7 @@ export interface Pokemon {
   status: PokemonStatus;
   pairId: string; // The ID shared with the soul linked partner
   route?: string;
+  killedBy?: Player; // Who caused the death
 }
 
 export interface Route {
@@ -19,10 +20,15 @@ export interface Route {
   encounterP1?: string; // ID of pokemon caught by P1
   encounterP2?: string; // ID of pokemon caught by P2
   encounterP3?: string; // ID of pokemon caught by P3
-  status: 'caught' | 'failed' | 'empty';
+  status: 'caught' | 'failed' | 'empty' | 'skipped';
 }
 
 export interface AppState {
   pokemon: Pokemon[];
   routes: Route[];
+  playerNames?: {
+    player1: string;
+    player2: string;
+    player3: string;
+  };
 }

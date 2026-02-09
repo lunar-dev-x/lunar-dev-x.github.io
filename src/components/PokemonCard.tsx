@@ -1,14 +1,15 @@
 import React from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { Pokemon } from '../types';
-import { GripVertical } from 'lucide-react';
+import { Pokemon, Player } from '../types';
+import { GripVertical, Skull } from 'lucide-react';
 
 interface Props {
   pokemon: Pokemon;
+  onUpdate?: (id: string, updates: Partial<Pokemon>) => void;
 }
 
-export const PokemonCard: React.FC<Props> = ({ pokemon }) => {
+export const PokemonCard: React.FC<Props> = ({ pokemon, onUpdate }) => {
   const {
     attributes,
     listeners,
@@ -59,13 +60,56 @@ export const PokemonCard: React.FC<Props> = ({ pokemon }) => {
           src={`https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${pokemon.dexId}.png`} 
           alt={pokemon.species}
           className="w-full h-full object-contain"
+          onError={(e) => {
+             // Fallback for missing sprites
+             (e.target as HTMLImageElement).src = 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/items/poke-ball.png';
+          }}
         />
       </div>
       
       {/* Info */}
-      <div className="flex-1 min-w-0">
+      <div className="flex-1 min-w-0 flex flex-col">
         <p className="font-bold text-sm truncate">{pokemon.nickname || pokemon.species}</p>
         <p className="text-xs text-gray-400 truncate">{pokemon.species}</p>
+        
+        {/* Blame Display (Only in Graveyard) */}
+        {pokemon.status === 'graveyard' && (
+            <div className="mt-1">
+                {pokemon.killedBy ? (
+                    <span 
+                        className={`text-[10px] px-1 rounded font-bold uppercase
+                        ${pokemon.killedBy === 'player1' ? 'bg-blue-900 text-blue-200' : 
+                          pokemon.killedBy === 'player2' ? 'bg-red-900 text-red-200' : 
+                          'bg-green-900 text-green-200'}`}
+                        onPointerDown={(e) => {
+                            // Prevent drag
+                            e.stopPropagation();
+                        }}
+                        onClick={(e) => {
+                             e.preventDefault();
+                             // Cycle blame
+                             const next = pokemon.killedBy === 'player1' ? 'player2' : pokemon.killedBy === 'player2' ? 'player3' : 'player1';
+                             onUpdate?.(pokemon.id, { killedBy: next });
+                        }}
+                    >
+                        Skull: {pokemon.killedBy === 'player1' ? 'P1' : pokemon.killedBy === 'player2' ? 'P2' : 'P3'}
+                    </span>
+                ) : (
+                     <button
+                        className="text-[10px] bg-gray-800 hover:bg-gray-900 px-1 rounded text-gray-400 flex items-center gap-1"
+                         onPointerDown={(e) => {
+                            e.stopPropagation();
+                        }}
+                         onClick={(e) => {
+                             e.preventDefault();
+                             onUpdate?.(pokemon.id, { killedBy: 'player1' });
+                        }}
+                     >
+                       <Skull size={10} /> Set Blame
+                     </button>
+                )}
+            </div>
+        )}
       </div>
 
       {/* Drag Handle */}
