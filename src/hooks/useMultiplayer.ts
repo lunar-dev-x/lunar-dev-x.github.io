@@ -74,16 +74,9 @@ export const useMultiplayer = (
          const val = snapshot.val();
          if (val) {
              // We received data from cloud.
-             // We must apply it, but ensure we don't trigger a push back to cloud immediately.
-             console.log("Cloud Update Received");
-             isRemoteUpdate.current = true;
+             // We assume handleStateReceived (in App.tsx) will update local state 
+             // without triggering a syncState() call back to us.
              onStateReceived(val);
-             
-             // Reset flag after a tick, to allow future local changes to push
-             // We use a slightly longer timeout to account for React render cycle
-             setTimeout(() => {
-                 isRemoteUpdate.current = false;
-             }, 100); 
          }
      });
 
@@ -91,7 +84,7 @@ export const useMultiplayer = (
   }, [sessionId, onStateReceived]);
 
   // 4. Push Updates (Both)
-  // Whenever the local AppState changes, we push to Firebase IF it wasn't a remote change.
+  // Whenever the local AppState changes, we push to Firebase.
   // We explicitly call this from App.tsx dispatch.
 
   // Helper to deep sanitize object for Firebase (replaces undefined with null)
@@ -111,10 +104,9 @@ export const useMultiplayer = (
   };
 
   const syncState = useCallback((newState: AppState) => {
-      // Only push if we are in a session AND the latest change wasn't from the cloud
-      if (sessionId && !isRemoteUpdate.current) {
+      // Push if we are in a session
+      if (sessionId) {
           const sessionRef = ref(db, `sessions/${sessionId}`);
-          console.log("Pushing Local State to Cloud");
           
           // CRITICAL: Sanitize state to remove any 'undefined' values which crash Firebase
           const cleanState = sanitizeForFirebase(newState);

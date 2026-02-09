@@ -17,7 +17,7 @@ interface Props {
 }
 
 // Sortable Row Component
-const SortableRow = ({ route, children }: { route: Route, children: React.ReactNode }) => {
+const SortableRow = ({ route, isEditing, children }: { route: Route, isEditing: boolean, children: React.ReactNode }) => {
   const {
     attributes,
     listeners,
@@ -30,7 +30,7 @@ const SortableRow = ({ route, children }: { route: Route, children: React.ReactN
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
-    zIndex: isDragging ? 10 : 1,
+    zIndex: isEditing ? 100 : (isDragging ? 10 : 1),
     opacity: isDragging ? 0.5 : 1,
     position: 'relative' as const,
   };
@@ -207,7 +207,7 @@ const RouteTracker: React.FC<Props> = ({ routes, onUpdateRoute, onCatch, onAddRo
                 const isEditing = editingId === route.id;
                 
                 return (
-                    <SortableRow key={route.id} route={route}>
+                    <SortableRow key={route.id} route={route} isEditing={isEditing}>
                     <td className="py-3 px-4 font-medium text-sm text-zinc-300">
                         {route.name}
                         {route.isCustom && <span className="ml-2 text-[10px] bg-indigo-500/20 text-indigo-300 px-1.5 py-0.5 rounded border border-indigo-500/30">Custom</span>}

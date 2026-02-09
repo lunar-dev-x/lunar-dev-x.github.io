@@ -117,14 +117,14 @@ function App() {
   );
 
   // --- Multiplayer Logic ---
-  const handleStateReceived = (newState: AppState) => {
+  const handleStateReceived = React.useCallback((newState: AppState) => {
     setState({
         ...newState,
         pokemon: newState.pokemon || [],
         routes: (newState.routes && newState.routes.length > 0) ? newState.routes : INITIAL_ROUTES,
         playerNames: newState.playerNames || { player1: 'Player 1', player2: 'Player 2', player3: 'Player 3'}
     });
-  };
+  }, []);
 
   const { sessionId, isConnected, userCount, createSession, joinSession, leaveSession, syncState } = useMultiplayer(state, handleStateReceived);
 
@@ -173,7 +173,7 @@ function App() {
             };
 
         case 'CATCH_POKEMON':
-            const routeUpdate = prev.routes.map(r => r.id === payload.routeId ? { ...r, status: 'caught' as const, encounterP1: payload.pokemons[0]?.id, encounterP2: payload.pokemons[1]?.id, encounterP3: payload.pokemons[2]?.id } : r);
+            const routeUpdate = prev.routes.map(r => r.id === payload.routeId ? { ...r, status: 'caught' as const, encounterP1: payload.pokemons[0]?.species, encounterP2: payload.pokemons[1]?.species, encounterP3: payload.pokemons[2]?.species } : r);
             return {
               ...prev,
               routes: routeUpdate,
@@ -267,33 +267,38 @@ function App() {
   };
 
   const handleCatch = async (routeId: string, p1Species: string, p2Species: string, p3Species: string) => {
-    const pairId = uuidv4();
-    const [p1Dex, p2Dex, p3Dex] = await Promise.all([
-      getDexId(p1Species), getDexId(p2Species), getDexId(p3Species)
-    ]);
-    
-    const p1PartySize = (state.pokemon || []).filter(p => p.owner === 'player1' && p.status === 'party').length;
-    const p2PartySize = (state.pokemon || []).filter(p => p.owner === 'player2' && p.status === 'party').length;
-    const p3PartySize = (state.pokemon || []).filter(p => p.owner === 'player3' && p.status === 'party').length;
+    try {
+      const pairId = uuidv4();
+      const [p1Dex, p2Dex, p3Dex] = await Promise.all([
+        getDexId(p1Species), getDexId(p2Species), getDexId(p3Species)
+      ]);
+      
+      const p1PartySize = (state.pokemon || []).filter(p => p.owner === 'player1' && p.status === 'party').length;
+      const p2PartySize = (state.pokemon || []).filter(p => p.owner === 'player2' && p.status === 'party').length;
+      const p3PartySize = (state.pokemon || []).filter(p => p.owner === 'player3' && p.status === 'party').length;
 
-    const statusP1 = p1PartySize < 6 ? 'party' : 'box';
-    const statusP2 = p2PartySize < 6 ? 'party' : 'box';
-    const statusP3 = p3PartySize < 6 ? 'party' : 'box';
+      const statusP1 = p1PartySize < 6 ? 'party' : 'box';
+      const statusP2 = p2PartySize < 6 ? 'party' : 'box';
+      const statusP3 = p3PartySize < 6 ? 'party' : 'box';
 
-    const newP1: Pokemon = {
-      id: uuidv4(), species: p1Species, dexId: p1Dex, nickname: '', owner: 'player1', status: statusP1, pairId, route: routeId
-    };
-    const newP2: Pokemon = {
-      id: uuidv4(), species: p2Species, dexId: p2Dex, nickname: '', owner: 'player2', status: statusP2, pairId, route: routeId
-    };
-    const newP3: Pokemon = {
-      id: uuidv4(), species: p3Species, dexId: p3Dex, nickname: '', owner: 'player3', status: statusP3, pairId, route: routeId
-    };
+      const newP1: Pokemon = {
+        id: uuidv4(), species: p1Species, dexId: p1Dex, nickname: '', owner: 'player1', status: statusP1, pairId, route: routeId
+      };
+      const newP2: Pokemon = {
+        id: uuidv4(), species: p2Species, dexId: p2Dex, nickname: '', owner: 'player2', status: statusP2, pairId, route: routeId
+      };
+      const newP3: Pokemon = {
+        id: uuidv4(), species: p3Species, dexId: p3Dex, nickname: '', owner: 'player3', status: statusP3, pairId, route: routeId
+      };
 
-    handleAction('CATCH_POKEMON', { 
-         routeId, 
-         pokemons: [newP1, newP2, newP3] 
-    });
+      handleAction('CATCH_POKEMON', { 
+          routeId, 
+          pokemons: [newP1, newP2, newP3] 
+      });
+    } catch (error) {
+       console.error("Failed to add encounter:", error);
+       alert("Failed to add Pokemon. Please check the spelling of the names.");
+    }
   };
 
   const updateRoute = (routeId: string, updates: Partial<Route>) => {
