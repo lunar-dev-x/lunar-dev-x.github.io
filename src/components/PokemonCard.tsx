@@ -1,7 +1,7 @@
 import React from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { Pokemon, Player } from '../types';
+import { Pokemon } from '../types';
 import { GripVertical, Skull } from 'lucide-react';
 
 interface Props {
