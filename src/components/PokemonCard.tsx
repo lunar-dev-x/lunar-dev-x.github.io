@@ -2,7 +2,7 @@ import React from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { Pokemon } from '../types';
-import { GripVertical, Skull } from 'lucide-react';
+import { Skull } from 'lucide-react';
 
 interface Props {
   pokemon: Pokemon;
@@ -45,6 +45,8 @@ export const PokemonCard: React.FC<Props> = ({ pokemon, onUpdate }) => {
     <div
       ref={setNodeRef}
       style={style}
+      {...attributes} 
+      {...listeners}
       className={`relative flex items-center gap-2 p-2 bg-gray-700 rounded-lg border-l-4 cursor-grab hover:bg-gray-600 transition group overflow-hidden ${borderColor}`}
     >
       {/* Pair Indicator */}
@@ -112,10 +114,10 @@ export const PokemonCard: React.FC<Props> = ({ pokemon, onUpdate }) => {
         )}
       </div>
 
-      {/* Drag Handle */}
-      <div {...attributes} {...listeners} className="text-gray-500 hover:text-white">
+      {/* Drag Handle - Hidden/Removed since card is draggable */}
+      {/* <div className="text-gray-500 hover:text-white">
         <GripVertical size={16} />
-      </div>
+      </div> */}
     </div>
   );
 };

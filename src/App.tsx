@@ -180,16 +180,42 @@ function App() {
            }
 
            let newPokemon = [...prev.pokemon];
-           const movedIndex = newPokemon.findIndex(p => p.id === activeId);
-           newPokemon[movedIndex] = {
-             ...newPokemon[movedIndex],
-             status: targetStatus,
-             owner: targetStatus === 'graveyard' ? activePokemon.owner : targetOwner 
-           };
+           
+           // SOUL LINK: If status changes (e.g. Party -> Box), move ALL linked Pokemon
+           if (targetStatus !== activePokemon.status) {
+                newPokemon = newPokemon.map(p => {
+                    if (p.pairId === activePokemon.pairId) {
+                        // If it's the dragged one, update owner (though usually same) and status
+                        if (p.id === activeId) {
+                            return {
+                                ...p,
+                                status: targetStatus,
+                                owner: targetStatus === 'graveyard' ? activePokemon.owner : targetOwner
+                            };
+                        }
+                        // For linked partners, just update status so they move to their respective Box/Party
+                        return {
+                            ...p,
+                            status: targetStatus
+                        };
+                    }
+                    return p;
+                });
+           } else {
+                // Same status (reordering), just update the single active one
+                const movedIndex = newPokemon.findIndex(p => p.id === activeId);
+                newPokemon[movedIndex] = {
+                    ...newPokemon[movedIndex],
+                    status: targetStatus,
+                    owner: targetStatus === 'graveyard' ? activePokemon.owner : targetOwner 
+                };
+           }
 
            if (!overId.startsWith('party-') && !overId.startsWith('box-') && overId !== 'graveyard') {
                const overIndex = newPokemon.findIndex(p => p.id === overId);
-               if (overIndex !== -1) {
+               const movedIndex = newPokemon.findIndex(p => p.id === activeId); // Find again in case it changed reference
+               
+               if (overIndex !== -1 && movedIndex !== -1) {
                   newPokemon = arrayMove(newPokemon, movedIndex, overIndex);
                }
            }

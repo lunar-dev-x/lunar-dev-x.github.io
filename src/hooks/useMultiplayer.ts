@@ -14,6 +14,13 @@ export const useMultiplayer = (
   const [connections, setConnections] = useState<DataConnection[]>([]);
   const peerRef = useRef<Peer | null>(null);
   const connRef = useRef<DataConnection | null>(null); // For client
+  
+  // Refs for handlers to avoid stale closures in PeerJS listeners
+  const onStateReceivedRef = useRef(onStateReceived);
+  const onActionReceivedRef = useRef(onActionReceived);
+  
+  useEffect(() => { onStateReceivedRef.current = onStateReceived; }, [onStateReceived]);
+  useEffect(() => { onActionReceivedRef.current = onActionReceived; }, [onActionReceived]);
 
   const stateRef = useRef(currentState);
   useEffect(() => { stateRef.current = currentState; }, [currentState]);
@@ -26,9 +33,13 @@ export const useMultiplayer = (
         iceServers: [
           { urls: 'stun:stun.l.google.com:19302' },
           { urls: 'stun:stun1.l.google.com:19302' },
-          { urls: 'stun:stun2.l.google.com:19302' }
-        ]
-      }
+          { urls: 'stun:stun2.l.google.com:19302' },
+          { urls: 'stun:stun3.l.google.com:19302' },
+          { urls: 'stun:stun4.l.google.com:19302' },
+        ],
+        iceCandidatePoolSize: 10,
+      },
+      debug: 1 // Reduces log spam, increase to 3 for debugging
     });
 
     peer.on('open', (id) => {
@@ -36,30 +47,40 @@ export const useMultiplayer = (
     });
 
     peer.on('connection', (conn) => {
-        // Only Host receives connections
         console.log('Incoming connection from', conn.peer);
         
         conn.on('open', () => {
              console.log('Peer connected (Host side):', conn.peer);
-             setConnections(prev => [...prev, conn]);
-             // Send initial state using Ref to avoid stale closure
+             setConnections(prev => {
+                 if(prev.find(c => c.peer === conn.peer)) return prev;
+                 return [...prev, conn];
+             });
+             // Send initial state using Ref
              conn.send({ type: 'SYNC_STATE', payload: stateRef.current });
         });
 
         conn.on('data', (data: any) => {
             if (data.type === 'ACTION') {
-                onActionReceived(data.payload);
+                onActionReceivedRef.current(data.payload);
             }
         });
 
         conn.on('close', () => {
             setConnections(prev => prev.filter(c => c.peer !== conn.peer));
         });
+        
+        conn.on('error', (err) => {
+             console.error('Connection level error:', err);
+        });
     });
     
+    peer.on('error', (err) => {
+        console.error('Peer error:', err);
+    });
+
     peerRef.current = peer;
     return peer;
-  }, [onActionReceived]);
+  }, []); // Removed dependencies, using refs
 
   const startHosting = useCallback(() => {
       setMode('host');
@@ -68,33 +89,45 @@ export const useMultiplayer = (
 
   const joinSession = useCallback((hostId: string) => {
       setMode('client');
-      // Client also needs a peer ID to connect, using same config
+      // Cleanup old peer if exists? Usually not needed if we are just switching modes
+      
       const peer = new Peer({
-        config: {
-          iceServers: [
-            { urls: 'stun:stun.l.google.com:19302' },
-            { urls: 'stun:stun1.l.google.com:19302' }
-          ]
-        }
-      }); 
+          config: {
+            iceServers: [
+                { urls: 'stun:stun.l.google.com:19302' },
+                { urls: 'stun:stun1.l.google.com:19302' },
+                { urls: 'stun:stun2.l.google.com:19302' }
+            ]
+          }
+      });
       peerRef.current = peer;
       
       peer.on('open', () => {
-          const conn = peer.connect(hostId);
+          const conn = peer.connect(hostId, { reliable: true });
+          
           conn.on('open', () => {
               console.log('Connected to host');
               connRef.current = conn;
               setPeerId(peer.id);
           });
+          
           conn.on('data', (data: any) => {
               if (data.type === 'SYNC_STATE') {
-                  onStateReceived(data.payload);
+                  // Validate payload before applying
+                  if (data.payload && data.payload.routes && data.payload.pokemon) {
+                     onStateReceivedRef.current(data.payload);
+                  }
               }
           });
+
           conn.on('close', () => {
               alert('Disconnected from host');
               setMode('offline');
               setConnections([]);
+          });
+          
+          conn.on('error', (err) => {
+              console.error('Client Connection Error:', err);
           });
       });
 
@@ -102,13 +135,17 @@ export const useMultiplayer = (
           console.error(err);
           alert('Connection error: ' + err.type);
       });
-  }, [onStateReceived]);
+  }, []); 
 
   const broadcastState = useCallback((state: AppState) => {
       if (mode === 'host') {
           connections.forEach(conn => {
               if (conn.open) {
-                conn.send({ type: 'SYNC_STATE', payload: state });
+                try {
+                    conn.send({ type: 'SYNC_STATE', payload: state });
+                } catch (e) {
+                    console.error('Failed to broadcast to', conn.peer, e);
+                }
               }
           });
       }
@@ -116,7 +153,12 @@ export const useMultiplayer = (
 
   const sendAction = useCallback((type: string, payload: any) => {
       if (mode === 'client' && connRef.current && connRef.current.open) {
-          connRef.current.send({ type: 'ACTION', payload: { type, payload } });
+          try {
+             connRef.current.send({ type: 'ACTION', payload: { type, payload } });
+          } catch (e) {
+              console.error('Failed to send action', e);
+              alert('Failed to send action to host. Connection might be unstable.');
+          }
       } else {
           console.warn('Cannot send action, not connected');
       }
