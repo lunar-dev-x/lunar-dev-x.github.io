@@ -291,11 +291,23 @@ function App() {
   };
 
   const updateRoute = (routeId: string, updates: Partial<Route>) => {
-      handleAction('UPDATE_ROUTE', { routeId, updates });
+      // Sanitize updates to ensure undefined values are converted to null for Firebase
+      const sanitizedUpdates = Object.entries(updates).reduce((acc, [key, value]) => {
+          (acc as any)[key] = value === undefined ? null : value;
+          return acc;
+      }, {} as Partial<Route>);
+
+      handleAction('UPDATE_ROUTE', { routeId, updates: sanitizedUpdates });
   };
 
   const updatePokemon = (id: string, updates: Partial<Pokemon>) => {
-      handleAction('UPDATE_POKEMON', { id, updates });
+      // Sanitize updates to replace undefined with null for Firebase compatibility
+      const sanitizedUpdates = Object.entries(updates).reduce((acc, [key, value]) => {
+          (acc as any)[key] = value === undefined ? null : value;
+          return acc;
+      }, {} as Partial<Pokemon>);
+      
+      handleAction('UPDATE_POKEMON', { id, updates: sanitizedUpdates });
   };
   
   const updateName = (player: 'player1' | 'player2' | 'player3', name: string) => {
