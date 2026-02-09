@@ -11,7 +11,7 @@ import Box from './components/Box';
 import RouteTracker from './components/RouteTracker';
 import PokemonCard from './components/PokemonCard';
 import SyncManager from './components/SyncManager';
-import { useMultiplayer } from './hooks/useMultiplayer';
+import { useMultiplayer } from './hooks/useMultiplayer.ts'; // Hook for Firebase sync
 
 const INITIAL_ROUTES: Route[] = [
   { id: 'start', name: 'Nuvema Town (Starter)', status: 'empty' },

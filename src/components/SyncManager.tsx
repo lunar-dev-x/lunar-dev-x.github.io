@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Wifi, WifiOff, Copy, Play, Link, Users, LogOut, Loader2 } from 'lucide-react';
+import { WifiOff, Copy, Play, Link, Users, LogOut, Loader2 } from 'lucide-react';
 
 interface SyncManagerProps {
   sessionId: string;
