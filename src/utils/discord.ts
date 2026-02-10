@@ -13,7 +13,7 @@ export const sendSaveToDiscord = async (state: AppState, reason: string) => {
         
         const formData = new FormData();
         formData.append('payload_json', JSON.stringify({
-            content: `**SoulLink Backup**\nReason: ${reason}\nTimestamp: ${timestamp}`,
+            content: `<@&1470579055727349926> **SoulLink Backup**\nReason: ${reason}\nTimestamp: ${timestamp}`,
             username: "SoulLink Bot",
         }));
         formData.append('file', blob, fileName);
