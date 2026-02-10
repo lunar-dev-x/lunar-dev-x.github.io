@@ -4,7 +4,7 @@ import { arrayMove, sortableKeyboardCoordinates } from '@dnd-kit/sortable';
 import { Pokemon, AppState, Route, PokemonStatus, Player } from './types';
 import { Save, Upload, RotateCcw, Skull } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
-import { getDexId } from './utils/pokeApi';
+import { getDexId, getEvolutionOptions, getPreEvolution } from './utils/pokeApi';
 
 import Party from './components/Party';
 import Box from './components/Box';
@@ -357,21 +357,49 @@ function App() {
     }
   };
 
-  // --- Context Menu Actions ---
-  const evolvePokemon = async (id: string) => {
+  // --- Evolution Logic ---
+  const [evoModal, setEvoModal] = useState<{
+      isOpen: boolean;
+      pokemonId: string;
+      options: { species: string; id: number }[];
+  }>({ isOpen: false, pokemonId: '', options: [] });
+
+  const handleEvolve = async (id: string) => {
       const p = (state.pokemon || []).find(pk => pk.id === id);
       if (!p) return;
-
-      const newSpecies = prompt(`What does ${p.nickname || p.species} evolve into?`);
-      if (!newSpecies) return;
-
-      const newDexId = await getDexId(newSpecies);
-      if (newDexId === 0) {
-          alert("Could not find that Pokemon. Check spelling.");
+      
+      const options = await getEvolutionOptions(p.species);
+      
+      if (options.length === 0) {
+          alert(`${p.species} does not seem to evolve further (or checking failed).`);
           return;
       }
+      
+      if (options.length === 1) {
+          // Auto evolve
+          updatePokemon(id, { species: options[0].species, dexId: options[0].id });
+      } else {
+          // Open Modal for branching evolution
+          setEvoModal({ isOpen: true, pokemonId: id, options });
+      }
+      setContextMenu(null);
+  };
 
-      updatePokemon(id, { species: newSpecies, dexId: newDexId });
+  const handleDevolve = async (id: string) => {
+      const p = (state.pokemon || []).find(pk => pk.id === id);
+      if (!p) return;
+      
+      const prev = await getPreEvolution(p.species);
+      
+      if (!prev) {
+           alert(`${p.species} does not have a known pre-evolution.`);
+           return;
+      }
+      
+      if (window.confirm(`Devolve ${p.species} back to ${prev.species}?`)) {
+          updatePokemon(id, { species: prev.species, dexId: prev.id });
+      }
+      setContextMenu(null);
   };
 
   const killPokemonPair = (id: string) => {
@@ -638,10 +666,16 @@ function App() {
                style={{ top: contextMenu.y, left: contextMenu.x }}
              >
                 <button 
-                  onClick={() => evolvePokemon(contextMenu.pokemonId)}
+                  onClick={() => handleEvolve(contextMenu.pokemonId)}
                   className="w-full text-left px-4 py-2 hover:bg-zinc-800 text-zinc-200 flex items-center gap-2"
                 >
                    Evolve
+                </button>
+                <button 
+                  onClick={() => handleDevolve(contextMenu.pokemonId)}
+                  className="w-full text-left px-4 py-2 hover:bg-zinc-800 text-zinc-200 flex items-center gap-2"
+                >
+                   Devolve
                 </button>
                 <div className="h-px bg-zinc-800 my-1"></div>
                 <button 
@@ -650,6 +684,39 @@ function App() {
                 >
                    <Skull size={14} /> Send to Graveyard
                 </button>
+             </div>
+          )}
+
+          {/* Evolution Modal */}
+          {evoModal.isOpen && (
+             <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+                 <div className="bg-zinc-900 border border-zinc-700 rounded-xl p-6 max-w-sm w-full shadow-2xl">
+                     <h3 className="text-lg font-bold text-white mb-4">Choose Evolution</h3>
+                     <div className="grid grid-cols-2 gap-3">
+                         {evoModal.options.map(opt => (
+                             <button
+                                key={opt.species}
+                                onClick={() => {
+                                    updatePokemon(evoModal.pokemonId, { species: opt.species, dexId: opt.id });
+                                    setEvoModal({ isOpen: false, pokemonId: '', options: [] });
+                                }}
+                                className="flex flex-col items-center gap-2 p-3 bg-zinc-800 hover:bg-zinc-700 rounded-lg border border-zinc-700 transition"
+                             >
+                                 <img 
+                                    src={`https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${opt.id}.png`} 
+                                    className="w-16 h-16 object-contain"
+                                 />
+                                 <span className="capitalize text-sm font-medium text-zinc-200">{opt.species}</span>
+                             </button>
+                         ))}
+                     </div>
+                     <button 
+                         onClick={() => setEvoModal({ isOpen: false, pokemonId: '', options: [] })}
+                         className="mt-6 w-full py-2 text-zinc-400 hover:bg-zinc-800 rounded-lg"
+                     >
+                         Cancel
+                     </button>
+                 </div>
              </div>
           )}
         </DndContext>

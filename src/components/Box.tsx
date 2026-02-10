@@ -44,6 +44,15 @@ const GraveyardGroup = ({ pairId, pokemonList, onUpdate, onContextMenu }: { pair
              }
         });
     };
+    
+    // Shared Blame Handler
+    const handleSetBlame = (culprit: Player | undefined) => {
+        pokemonList.forEach(p => {
+            if (p.killedBy !== culprit) {
+                onUpdate?.(p.id, { killedBy: culprit });
+            }
+        });
+    };
 
     const color = getPairColor(pairId);
     
@@ -72,15 +81,49 @@ const GraveyardGroup = ({ pairId, pokemonList, onUpdate, onContextMenu }: { pair
                         ))}
                     </div>
 
-                    <div className="pt-4 border-t border-zinc-800">
-                        <label className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-2 block">Incident Report</label>
-                        <textarea 
-                            className="w-full bg-zinc-950/50 border border-zinc-700/50 rounded-lg p-3 text-sm text-zinc-300 placeholder:text-zinc-700 focus:outline-none focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/20 transition resize-none h-24"
-                            placeholder="How did they meet their end? (Auto-saves on blur)"
-                            value={description}
-                            onChange={(e) => setDescription(e.target.value)}
-                            onBlur={handleSaveDescription}
-                        />
+                    <div className="pt-4 border-t border-zinc-800 flex gap-6">
+                        <div className="flex-1">
+                            <label className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-2 block">Incident Report</label>
+                            <textarea 
+                                className="w-full bg-zinc-950/50 border border-zinc-700/50 rounded-lg p-3 text-sm text-zinc-300 placeholder:text-zinc-700 focus:outline-none focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/20 transition resize-none h-24"
+                                placeholder="How did they meet their end? (Auto-saves on blur)"
+                                value={description}
+                                onChange={(e) => setDescription(e.target.value)}
+                                onBlur={handleSaveDescription}
+                            />
+                        </div>
+                        <div className="w-48">
+                            <label className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-2 block">Who is to blame?</label>
+                            <div className="flex flex-col gap-2">
+                                <button 
+                                    onClick={() => handleSetBlame('player1')}
+                                    className={`px-3 py-2 rounded-md text-sm border transition flex items-center justify-between group ${killer === 'player1' ? 'bg-blue-500/20 border-blue-500/50 text-blue-300' : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:border-zinc-600'}`}
+                                >
+                                    <span>Player 1</span>
+                                    {killer === 'player1' && <Skull size={14} />}
+                                </button>
+                                <button 
+                                    onClick={() => handleSetBlame('player2')}
+                                    className={`px-3 py-2 rounded-md text-sm border transition flex items-center justify-between group ${killer === 'player2' ? 'bg-red-500/20 border-red-500/50 text-red-300' : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:border-zinc-600'}`}
+                                >
+                                    <span>Player 2</span>
+                                    {killer === 'player2' && <Skull size={14} />}
+                                </button>
+                                <button 
+                                    onClick={() => handleSetBlame('player3')}
+                                    className={`px-3 py-2 rounded-md text-sm border transition flex items-center justify-between group ${killer === 'player3' ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-300' : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:border-zinc-600'}`}
+                                >
+                                    <span>Player 3</span>
+                                    {killer === 'player3' && <Skull size={14} />}
+                                </button>
+                                <button 
+                                    onClick={() => handleSetBlame(undefined)}
+                                    className="mt-2 text-xs text-zinc-600 hover:text-zinc-400 underline decoration-zinc-700"
+                                >
+                                    Clear Blame
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>

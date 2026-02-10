@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { db } from '../firebase';
 import { ref, onValue, set, push, child, get, onDisconnect, remove, update } from 'firebase/database';
 import { sendSaveToDiscord } from '../utils/discord';
+import { AppState } from '../types';
 
 export const useMultiplayer = (
   currentState: AppState,
