@@ -1,30 +1,28 @@
 import React, { useState, useEffect } from 'react';
 import { Pokemon } from '../types';
-import { X, Sword, Shield, Save, RefreshCw, Zap } from 'lucide-react';
+import { X, Sword, Shield, Save } from 'lucide-react';
 import { getTypeEffectiveness } from '../utils/gameData';
 import { getPokemonDetails } from '../utils/pokeApi';
 import AutocompleteInput from './AutocompleteInput';
 
 interface Props {
+  isOpen?: boolean;
   pokemon: Pokemon;
   onUpdate: (id: string, updates: Partial<Pokemon>) => void;
   onClose: () => void;
 }
 
-const PokemonDetailsModal: React.FC<Props> = ({ pokemon, onUpdate, onClose }) => {
+const PokemonDetailsModal: React.FC<Props> = ({ isOpen, pokemon, onUpdate, onClose }) => {
   const [nickname, setNickname] = useState(pokemon.nickname || '');
   const [item, setItem] = useState(pokemon.item || '');
   const [moves, setMoves] = useState<string[]>(pokemon.moves || ['', '', '', '']);
   const [types, setTypes] = useState<string[]>(pokemon.types || []);
-  const [loading, setLoading] = useState(false);
   const [possibleMoves, setPossibleMoves] = useState<string[]>([]);
-  const [flavorText, setFlavorText] = useState('Loading details...');
 
   // Effect to load types if missing
   useEffect(() => {
       const fetchDetails = async () => {
           if (!pokemon.types || pokemon.types.length === 0) {
-              setLoading(true);
               const details = await getPokemonDetails(pokemon.species);
               if (details) {
                   setTypes(details.types);
