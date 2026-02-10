@@ -7,9 +7,10 @@ import { Skull } from 'lucide-react';
 interface Props {
   pokemon: Pokemon;
   onUpdate?: (id: string, updates: Partial<Pokemon>) => void;
+  onContextMenu?: (e: React.MouseEvent) => void;
 }
 
-export const PokemonCard: React.FC<Props> = ({ pokemon, onUpdate }) => {
+export const PokemonCard: React.FC<Props> = ({ pokemon, onUpdate, onContextMenu }) => {
   const {
     attributes,
     listeners,
@@ -30,14 +31,15 @@ export const PokemonCard: React.FC<Props> = ({ pokemon, onUpdate }) => {
     pokemon.owner === 'player2' ? 'border-red-500' :
     'border-green-500';
   
-  // Generate a consistent color from pairId
+  // Generate a consistent, vibrant color from pairId
   const getPairColor = (id: string) => {
     let hash = 0;
     for (let i = 0; i < id.length; i++) {
         hash = id.charCodeAt(i) + ((hash << 5) - hash);
     }
-    const c = (hash & 0x00FFFFFF).toString(16).toUpperCase();
-    return '#' + '00000'.substring(0, 6 - c.length) + c;
+    // Use HSL with Golden Angle offset for better color distribution
+    const hue = Math.abs((hash * 137.5) % 360);
+    return `hsl(${hue}, 85%, 60%)`;
   };
   const pairColor = getPairColor(pokemon.pairId);
 
@@ -47,6 +49,7 @@ export const PokemonCard: React.FC<Props> = ({ pokemon, onUpdate }) => {
       style={style}
       {...attributes} 
       {...listeners}
+      onContextMenu={onContextMenu}
       className={`relative flex items-center gap-3 p-2 bg-zinc-900 rounded-md border-l-[3px] shadow-sm cursor-grab 
         hover:bg-zinc-800 hover:shadow-md hover:scale-[1.02] active:scale-[0.98] active:cursor-grabbing 
         transition-all duration-200 ease-out group overflow-hidden ${borderColor}`}

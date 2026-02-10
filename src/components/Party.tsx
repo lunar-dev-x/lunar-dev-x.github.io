@@ -7,9 +7,10 @@ import PokemonCard from './PokemonCard';
 interface Props {
   player: Player | 'graveyard';
   pokemon: Pokemon[];
+  onContextMenu?: (e: React.MouseEvent, id: string) => void;
 }
 
-const Party: React.FC<Props> = ({ player, pokemon }) => {
+const Party: React.FC<Props> = ({ player, pokemon, onContextMenu }) => {
   const containerId = `party-${player}`;
   const { setNodeRef } = useDroppable({
     id: containerId,
@@ -55,7 +56,7 @@ const Party: React.FC<Props> = ({ player, pokemon }) => {
                 <div className="absolute top-0 right-0 p-1">
                     <span className="text-[9px] font-bold text-zinc-600 block leading-none">#{index + 1}</span>
                 </div>
-                <PokemonCard pokemon={p} />
+                <PokemonCard pokemon={p} onContextMenu={(e) => onContextMenu?.(e, p.id)} />
             </div>
           ))}
         </SortableContext>

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { DndContext, DragOverlay, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent, DragStartEvent } from '@dnd-kit/core';
 import { arrayMove, sortableKeyboardCoordinates } from '@dnd-kit/sortable';
 import { Pokemon, AppState, Route, PokemonStatus, Player } from './types';
-import { Save, Upload, RotateCcw } from 'lucide-react';
+import { Save, Upload, RotateCcw, Skull } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import { getDexId } from './utils/pokeApi';
 
@@ -355,7 +355,53 @@ function App() {
     }
   };
 
+  // --- Context Menu Actions ---
+  const evolvePokemon = async (id: string) => {
+      const p = (state.pokemon || []).find(pk => pk.id === id);
+      if (!p) return;
 
+      const newSpecies = prompt(`What does ${p.nickname || p.species} evolve into?`);
+      if (!newSpecies) return;
+
+      const newDexId = await getDexId(newSpecies);
+      if (newDexId === 0) {
+          alert("Could not find that Pokemon. Check spelling.");
+          return;
+      }
+
+      updatePokemon(id, { species: newSpecies, dexId: newDexId });
+  };
+
+  const killPokemonPair = (id: string) => {
+      const p = (state.pokemon || []).find(pk => pk.id === id);
+      if (!p) return;
+      
+      if (!window.confirm(`Are you sure you want to send this ${p.species} and its partners to the Graveyard?`)) return;
+
+      const pairId = p.pairId;
+      
+      const newPokemonList = (state.pokemon || []).map(pk => {
+          if (pk.pairId === pairId) {
+              return { ...pk, status: 'graveyard' as const };
+          }
+          return pk;
+      });
+      
+      updateState(prev => ({ ...prev, pokemon: newPokemonList }));
+  };
+
+  const [contextMenu, setContextMenu] = useState<{ x: number, y: number, pokemonId: string } | null>(null);
+
+  const handleContextMenu = (e: React.MouseEvent, pokemonId: string) => {
+      e.preventDefault();
+      setContextMenu({ x: e.clientX, y: e.clientY, pokemonId });
+  };
+
+  useEffect(() => {
+      const handleClick = () => setContextMenu(null);
+      document.addEventListener('click', handleClick);
+      return () => document.removeEventListener('click', handleClick);
+  }, []);
 
   const exportData = () => {
     const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(state));
@@ -396,10 +442,17 @@ function App() {
       return (state.pokemon || []).find(p => p.id === activeId);
   };
 
+  const getDeathCount = (player: Player) => {
+    // Count unique pairIds killed by this player to represent "Incidents" or "Links Lost"
+    const deadPokemon = (state.pokemon || []).filter(p => p.status === 'graveyard' && p.killedBy === player);
+    const uniquePairs = new Set(deadPokemon.map(p => p.pairId));
+    return uniquePairs.size;
+  };
+
   const deaths = {
-      p1: (state.pokemon || []).filter(p => p.status === 'graveyard' && p.killedBy === 'player1').length,
-      p2: (state.pokemon || []).filter(p => p.status === 'graveyard' && p.killedBy === 'player2').length,
-      p3: (state.pokemon || []).filter(p => p.status === 'graveyard' && p.killedBy === 'player3').length,
+      p1: getDeathCount('player1'),
+      p2: getDeathCount('player2'),
+      p3: getDeathCount('player3'),
   };
 
   return (
@@ -419,22 +472,8 @@ function App() {
           </div>
           
           <div className="flex items-center gap-4">
-             {/* Death Counters - Compact */}
-             <div className="hidden md:flex items-center gap-1 bg-zinc-900 border border-zinc-800 rounded-md px-3 py-1.5">
-                 <div className="flex items-center gap-2 pr-3 border-r border-zinc-800">
-                     <span className="w-2 h-2 rounded-full bg-blue-500"></span>
-                     <span className="text-xs font-medium text-zinc-400" title={state.playerNames?.player1}>P1: <span className="text-zinc-100">{deaths.p1}</span></span>
-                 </div>
-                 <div className="flex items-center gap-2 px-3 border-r border-zinc-800">
-                     <span className="w-2 h-2 rounded-full bg-red-500"></span>
-                     <span className="text-xs font-medium text-zinc-400" title={state.playerNames?.player2}>P2: <span className="text-zinc-100">{deaths.p2}</span></span>
-                 </div>
-                 <div className="flex items-center gap-2 pl-3">
-                     <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-                     <span className="text-xs font-medium text-zinc-400" title={state.playerNames?.player3}>P3: <span className="text-zinc-100">{deaths.p3}</span></span>
-                 </div>
-             </div>
-
+             {/* Death Counters - Removed from top bar per request, moving to player cards */}
+             
              <div className="flex items-center gap-2">
                 <SyncManager 
                   sessionId={sessionId}
@@ -491,10 +530,14 @@ function App() {
                     />
                  </div>
                  <span className="text-xs px-2 py-0.5 bg-blue-500/10 text-blue-400 rounded">Host</span>
+                 <div className="flex items-center gap-1.5 px-2 py-1 bg-red-500/10 rounded border border-red-500/20" title="Deaths Caused">
+                    <Skull size={12} className="text-red-400" />
+                    <span className="text-xs font-bold text-red-200">{deaths.p1}</span>
+                 </div>
               </div>
               <div className="p-4 space-y-6">
-                <Party player="player1" pokemon={getPokemon('player1', 'party')} />
-                <Box player="player1" pokemon={getPokemon('player1', 'box')} />
+                <Party player="player1" pokemon={getPokemon('player1', 'party')} onContextMenu={handleContextMenu} />
+                <Box player="player1" pokemon={getPokemon('player1', 'box')} onContextMenu={handleContextMenu} />
               </div>
             </div>
 
@@ -510,10 +553,14 @@ function App() {
                       placeholder="Player 2 Name"
                     />
                  </div>
+                 <div className="flex items-center gap-1.5 px-2 py-1 bg-red-500/10 rounded border border-red-500/20" title="Deaths Caused">
+                    <Skull size={12} className="text-red-400" />
+                    <span className="text-xs font-bold text-red-200">{deaths.p2}</span>
+                 </div>
               </div>
               <div className="p-4 space-y-6">
-                <Party player="player2" pokemon={getPokemon('player2', 'party')} />
-                <Box player="player2" pokemon={getPokemon('player2', 'box')} />
+                <Party player="player2" pokemon={getPokemon('player2', 'party')} onContextMenu={handleContextMenu} />
+                <Box player="player2" pokemon={getPokemon('player2', 'box')} onContextMenu={handleContextMenu} />
               </div>
             </div>
             
@@ -529,10 +576,14 @@ function App() {
                       placeholder="Player 3 Name"
                     />
                  </div>
+                 <div className="flex items-center gap-1.5 px-2 py-1 bg-red-500/10 rounded border border-red-500/20" title="Deaths Caused">
+                    <Skull size={12} className="text-red-400" />
+                    <span className="text-xs font-bold text-red-200">{deaths.p3}</span>
+                 </div>
               </div>
               <div className="p-4 space-y-6">
-                <Party player="player3" pokemon={getPokemon('player3', 'party')} />
-                <Box player="player3" pokemon={getPokemon('player3', 'box')} />
+                <Party player="player3" pokemon={getPokemon('player3', 'party')} onContextMenu={handleContextMenu} />
+                <Box player="player3" pokemon={getPokemon('player3', 'box')} onContextMenu={handleContextMenu} />
               </div>
             </div>
           </div>
@@ -550,6 +601,7 @@ function App() {
                 isGraveyard 
                 pokemon={(state.pokemon || []).filter(p => p.status === 'graveyard')} 
                 onUpdatePokemon={updatePokemon}
+                onContextMenu={handleContextMenu}
              />
           </div>
 
@@ -571,6 +623,28 @@ function App() {
                   </div>
               ) : null}
           </DragOverlay>
+
+          {/* Context Menu */}
+          {contextMenu && (
+             <div 
+               className="fixed z-50 bg-zinc-900 border border-zinc-700 rounded-lg shadow-xl py-1 w-48 overflow-hidden text-sm"
+               style={{ top: contextMenu.y, left: contextMenu.x }}
+             >
+                <button 
+                  onClick={() => evolvePokemon(contextMenu.pokemonId)}
+                  className="w-full text-left px-4 py-2 hover:bg-zinc-800 text-zinc-200 flex items-center gap-2"
+                >
+                   Evolve
+                </button>
+                <div className="h-px bg-zinc-800 my-1"></div>
+                <button 
+                  onClick={() => killPokemonPair(contextMenu.pokemonId)}
+                  className="w-full text-left px-4 py-2 hover:bg-red-500/20 text-red-400 flex items-center gap-2"
+                >
+                   <Skull size={14} /> Send to Graveyard
+                </button>
+             </div>
+          )}
         </DndContext>
       </motion.main>
     </div>
