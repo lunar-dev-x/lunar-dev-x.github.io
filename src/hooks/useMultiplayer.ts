@@ -26,6 +26,10 @@ export const useMultiplayer = (
              // Upload initial state
              // Must sanitize initial state too, or creation fails if Routes have undefined props
              const cleanState = sanitizeForFirebase(currentState);
+             
+             // Remove metadata that might have been polluted into local state
+             if ((cleanState as any).activeUsers) delete (cleanState as any).activeUsers;
+             
              await set(newSessionRef, cleanState);
              
              setSessionId(id);
@@ -73,6 +77,9 @@ export const useMultiplayer = (
      const unsubscribe = onValue(sessionRef, (snapshot) => {
          const val = snapshot.val();
          if (val) {
+             // Clean incoming data just in case
+             if (val.activeUsers) delete val.activeUsers;
+             
              // We received data from cloud.
              // We assume handleStateReceived (in App.tsx) will update local state 
              // without triggering a syncState() call back to us.
@@ -110,6 +117,9 @@ export const useMultiplayer = (
           
           // CRITICAL: Sanitize state to remove any 'undefined' values which crash Firebase
           const cleanState = sanitizeForFirebase(newState);
+
+          // Prevent metadata sync leakage
+          if ((cleanState as any).activeUsers) delete (cleanState as any).activeUsers;
           
           set(sessionRef, cleanState).catch(err => console.error("Sync Failed:", err));
       }
