@@ -60,6 +60,8 @@ const INITIAL_ROUTES: Route[] = [
   { id: 'egg', name: 'Larvesta Egg', status: 'empty' },
 ];
 
+import { sendSaveToDiscord } from './utils/discord';
+
 function App() {
   const [state, setState] = useState<AppState>(() => {
     const saved = localStorage.getItem('soul-link-state');
@@ -404,6 +406,9 @@ function App() {
   }, []);
 
   const exportData = () => {
+    // Send to Discord
+    sendSaveToDiscord(state, "Manual Save Download");
+
     const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(state));
     const downloadAnchorNode = document.createElement('a');
     downloadAnchorNode.setAttribute("href", dataStr);

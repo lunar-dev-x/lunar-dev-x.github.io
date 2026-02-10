@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { db } from '../firebase';
-import { ref, onValue, set, push, child, get, onDisconnect, remove } from 'firebase/database';
-import { AppState } from '../types';
+import { ref, onValue, set, push, child, get, onDisconnect, remove, update } from 'firebase/database';
+import { sendSaveToDiscord } from '../utils/discord';
 
 export const useMultiplayer = (
   currentState: AppState,
@@ -121,7 +121,8 @@ export const useMultiplayer = (
           // Prevent metadata sync leakage
           if ((cleanState as any).activeUsers) delete (cleanState as any).activeUsers;
           
-          set(sessionRef, cleanState).catch(err => console.error("Sync Failed:", err));
+          // Use update instead of set to avoid wiping out the activeUsers node which lives at the same path
+          update(sessionRef, cleanState).catch(err => console.error("Sync Failed:", err));
       }
   }, [sessionId]);
 
@@ -173,6 +174,9 @@ export const useMultiplayer = (
     if (sessionId && isHost) {
         if (confirm("Are you sure you want to delete this session for everyone? This cannot be undone.")) {
             try {
+                // Determine reason for termination (context dependent, but here just generic)
+                await sendSaveToDiscord(currentState, "Session Terminated by Host");
+                
                 await remove(ref(db, `sessions/${sessionId}`));
                 leaveSession();
             } catch (err) {
@@ -181,7 +185,7 @@ export const useMultiplayer = (
             }
         }
     }
-  }, [sessionId, isHost, leaveSession]);
+  }, [sessionId, isHost, leaveSession, currentState]);
 
   return {
       sessionId,
