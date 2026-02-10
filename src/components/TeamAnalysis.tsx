@@ -2,18 +2,19 @@
 import React from 'react';
 import { Pokemon } from '../types';
 import { getTypeEffectiveness } from '../utils/gameData';
-import { X, ShieldAlert, BadgeCheck } from 'lucide-react';
+import { X, ShieldAlert } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 
 interface Props {
-  party: Pokemon[];
+  isOpen: boolean;
+  pokemon: Pokemon[];
   onClose: () => void;
 }
 
-const TeamAnalysis: React.FC<Props> = ({ party, onClose }) => {
-  // We need types for the party. If they aren't loaded in Pokemon object yet, we might have issues.
-  // Assuming Pokemon object has types now, or we fetch them? 
-  // For now, let's assume we need to instruct user to open details to load types, or we fetch en-masse.
-  // To avoid complex async here, we'll just check if types exist.
+const TeamAnalysis: React.FC<Props> = ({ isOpen, pokemon, onClose }) => {
+  if (!isOpen) return null;
+
+  const party = pokemon.filter(p => p.status === 'party');
   
   const partyWithTypes = party.filter(p => p.types && p.types.length > 0);
   
