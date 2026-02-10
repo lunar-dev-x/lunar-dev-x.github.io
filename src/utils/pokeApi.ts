@@ -98,3 +98,21 @@ export const getPreEvolution = async (currentSpecies: string): Promise<Evolution
         return null;
     }
 };
+
+export const getPokemonDetails = async (species: string) => {
+    try {
+        const res = await fetch(`https://pokeapi.co/api/v2/pokemon/${species.toLowerCase()}`);
+        if (!res.ok) return null;
+        const data = await res.json();
+        
+        return {
+            types: data.types.map((t: any) => t.type.name),
+            abilities: data.abilities.map((a: any) => a.ability.name),
+            moves: data.moves.map((m: any) => m.move.name),
+            stats: data.stats
+        };
+    } catch (e) {
+        console.error("Detail fetch failed", e);
+        return null;
+    }
+};

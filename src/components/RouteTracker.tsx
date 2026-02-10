@@ -203,6 +203,7 @@ const RouteTracker: React.FC<Props> = ({ routes, onUpdateRoute, onCatch, onAddRo
               <th className="py-3 px-4 font-semibold text-red-400">Player 2 Encounter</th>
               <th className="py-3 px-4 font-semibold text-emerald-400">Player 3 Encounter</th>
               <th className="py-3 px-4 font-semibold">Status</th>
+              <th className="py-3 px-4 font-semibold">Failed By</th>
               <th className="py-3 px-4 font-semibold text-right">Actions</th>
             </tr>
           </thead>
@@ -278,29 +279,33 @@ const RouteTracker: React.FC<Props> = ({ routes, onUpdateRoute, onCatch, onAddRo
                             <option value="failed">Failed</option>
                             <option value="skipped">Skipped</option>
                         </select>
-                        {(statusInput === 'failed' || statusInput === 'skipped') && (
-                            <div className="flex gap-1">
-                                <button onClick={() => setFailedByInput(prev => prev.includes('player1') ? prev.filter(p => p !== 'player1') : [...prev, 'player1'])} className={`flex-1 text-[10px] px-1 py-0.5 rounded border transition font-bold uppercase ${failedByInput.includes('player1') ? 'bg-blue-500/20 text-blue-400 border-blue-500/50' : 'bg-zinc-900 border-zinc-800 text-zinc-600 hover:border-zinc-700'}`}>P1</button>
-                                <button onClick={() => setFailedByInput(prev => prev.includes('player2') ? prev.filter(p => p !== 'player2') : [...prev, 'player2'])} className={`flex-1 text-[10px] px-1 py-0.5 rounded border transition font-bold uppercase ${failedByInput.includes('player2') ? 'bg-red-500/20 text-red-400 border-red-500/50' : 'bg-zinc-900 border-zinc-800 text-zinc-600 hover:border-zinc-700'}`}>P2</button>
-                                <button onClick={() => setFailedByInput(prev => prev.includes('player3') ? prev.filter(p => p !== 'player3') : [...prev, 'player3'])} className={`flex-1 text-[10px] px-1 py-0.5 rounded border transition font-bold uppercase ${failedByInput.includes('player3') ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/50' : 'bg-zinc-900 border-zinc-800 text-zinc-600 hover:border-zinc-700'}`}>P3</button>
-                            </div>
-                        )}
                         </div>
                         ) : (
-                        <div className="flex flex-col gap-1 items-start">
+                        <div className="flex items-center">
                             {route.status === 'caught' && <span className="flex items-center gap-1.5 bg-emerald-500/10 text-emerald-400 px-2.5 py-1 rounded-full text-xs font-semibold border border-emerald-500/20"><Check size={12}/> Caught</span>}
                             {route.status === 'failed' && <span className="flex items-center gap-1.5 bg-red-500/10 text-red-400 px-2.5 py-1 rounded-full text-xs font-semibold border border-red-500/20"><X size={12}/> Failed</span>}
                             {route.status === 'skipped' && <span className="flex items-center gap-1.5 bg-zinc-700/30 text-zinc-400 px-2.5 py-1 rounded-full text-xs font-semibold border border-zinc-600/30"><Circle size={12}/> Skipped</span>}
                             {route.status === 'empty' && <span className="flex items-center gap-1.5 bg-zinc-800/30 text-zinc-500 px-2.5 py-1 rounded-full text-xs font-semibold border border-zinc-700/30"><Circle size={12}/> Open</span>}
-                            
-                            {(route.status === 'failed' || route.status === 'skipped') && route.failedBy && route.failedBy.length > 0 && (
-                                <div className="flex gap-1 ml-1 mt-1">
-                                    {route.failedBy.includes('player1') && <span className="w-2 h-2 rounded-full bg-blue-500" title="Player 1 Failed"></span>}
-                                    {route.failedBy.includes('player2') && <span className="w-2 h-2 rounded-full bg-red-500" title="Player 2 Failed"></span>}
-                                    {route.failedBy.includes('player3') && <span className="w-2 h-2 rounded-full bg-emerald-500" title="Player 3 Failed"></span>}
-                                </div>
-                            )}
                         </div>
+                        )}
+                    </td>
+                    
+                    {/* Failed By */}
+                    <td className="py-3 px-4">
+                        {isEditing && (statusInput === 'failed' || statusInput === 'skipped') ? (
+                             <div className="flex gap-1">
+                                <button onClick={() => setFailedByInput(prev => prev.includes('player1') ? prev.filter(p => p !== 'player1') : [...prev, 'player1'])} className={`flex-1 text-[10px] px-1 py-0.5 rounded border transition font-bold uppercase ${failedByInput.includes('player1') ? 'bg-blue-500/20 text-blue-400 border-blue-500/50' : 'bg-zinc-900 border-zinc-800 text-zinc-600 hover:border-zinc-700'}`}>P1</button>
+                                <button onClick={() => setFailedByInput(prev => prev.includes('player2') ? prev.filter(p => p !== 'player2') : [...prev, 'player2'])} className={`flex-1 text-[10px] px-1 py-0.5 rounded border transition font-bold uppercase ${failedByInput.includes('player2') ? 'bg-red-500/20 text-red-400 border-red-500/50' : 'bg-zinc-900 border-zinc-800 text-zinc-600 hover:border-zinc-700'}`}>P2</button>
+                                <button onClick={() => setFailedByInput(prev => prev.includes('player3') ? prev.filter(p => p !== 'player3') : [...prev, 'player3'])} className={`flex-1 text-[10px] px-1 py-0.5 rounded border transition font-bold uppercase ${failedByInput.includes('player3') ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/50' : 'bg-zinc-900 border-zinc-800 text-zinc-600 hover:border-zinc-700'}`}>P3</button>
+                            </div>
+                        ) : (
+                             (route.status === 'failed' || route.status === 'skipped') && route.failedBy && (
+                                <div className="flex flex-wrap gap-1">
+                                    {route.failedBy.includes('player1') && <span className="text-[10px] font-bold text-blue-400 bg-blue-400/10 px-1.5 py-0.5 rounded border border-blue-400/20">P1</span>}
+                                    {route.failedBy.includes('player2') && <span className="text-[10px] font-bold text-red-400 bg-red-400/10 px-1.5 py-0.5 rounded border border-red-400/20">P2</span>}
+                                    {route.failedBy.includes('player3') && <span className="text-[10px] font-bold text-emerald-400 bg-emerald-400/10 px-1.5 py-0.5 rounded border border-emerald-400/20">P3</span>}
+                                </div>
+                             )
                         )}
                     </td>
 

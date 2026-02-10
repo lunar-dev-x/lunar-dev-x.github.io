@@ -13,6 +13,13 @@ export interface Pokemon {
   route?: string;
   killedBy?: Player; // Who caused the death
   incidentDescription?: string; // Description of how they died
+  
+  // New details
+  moves?: string[]; // Array of 4 move names
+  ability?: string;
+  item?: string;
+  nature?: string;
+  types?: string[]; // ['fire', 'flying']
 }
 
 export interface Route {
@@ -29,6 +36,7 @@ export interface Route {
 export interface AppState {
   pokemon: Pokemon[];
   routes: Route[];
+  badges?: number; // 0-8
   playerNames?: {
     player1: string;
     player2: string;

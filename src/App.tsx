@@ -14,6 +14,10 @@ import SyncManager from './components/SyncManager';
 import { useMultiplayer } from './hooks/useMultiplayer.ts'; // Hook for Firebase sync
 import { motion } from 'framer-motion';
 
+import PokemonDetailsModal from './components/PokemonDetailsModal';
+import BadgeTracker from './components/BadgeTracker';
+import TeamAnalysis from './components/TeamAnalysis';
+
 const INITIAL_ROUTES: Route[] = [
   { id: 'start', name: 'Nuvema Town (Starter)', status: 'empty' },
   { id: 'r1', name: 'Route 1', status: 'empty' },
@@ -90,12 +94,14 @@ function App() {
             player2: 'Player 2',
             player3: 'Player 3'
           },
+          badges: parsed.badges || 0, // Initialize badges
           routes: mergedRoutes
       };
     }
     return {
       pokemon: [],
       routes: INITIAL_ROUTES,
+      badges: 0,
       playerNames: {
         player1: 'Player 1',
         player2: 'Player 2',
@@ -103,6 +109,9 @@ function App() {
       }
     };
   });
+
+  const [showTeamAnalysis, setShowTeamAnalysis] = useState(false);
+  const [selectedPokemonForDetails, setSelectedPokemonForDetails] = useState<Pokemon | null>(null);
 
   const [activeId, setActiveId] = useState<string | null>(null);
 
@@ -248,6 +257,19 @@ function App() {
            return { ...prev, pokemon: newPokemon };
         }
 
+        case 'UPDATE_BADGES':
+          return { ...prev, badges: payload };
+
+        case 'UPDATE_POKEMON_DETAILS':
+            return {
+                ...prev,
+                pokemon: prev.pokemon.map(p => 
+                    p.id === payload.id 
+                    ? { ...p, ...payload.updates }
+                    : p
+                )
+             };
+
         default:
           return prev;
       }
@@ -323,6 +345,14 @@ function App() {
       handleAction('UPDATE_POKEMON', { id, updates: sanitizedUpdates });
   };
   
+  const updatePokemonDetails = (id: string, updates: Partial<Pokemon>) => {
+      handleAction('UPDATE_POKEMON_DETAILS', { id, updates });
+  };
+
+  const updateBadges = (count: number) => {
+    handleAction('UPDATE_BADGES', count);
+  };
+
   const updateName = (player: 'player1' | 'player2' | 'player3', name: string) => {
       handleAction('UPDATE_PLAYER_NAME', { player, name });
   };
@@ -427,10 +457,19 @@ function App() {
       const p = (state.pokemon || []).find(pk => pk.id === id);
       if (!p) return;
       
-      setRenameModal({ isOpen: true, pokemonId: id, currentName: p.nickname || p.species });
+      // Instead of the old modal, we'll use the Details modal
+      setSelectedPokemonForDetails(p);
       setContextMenu(null);
   };
   
+  const handleDetails = (id: string) => {
+      const p = state.pokemon.find(pf => pf.id === id);
+      if (p) {
+        setSelectedPokemonForDetails(p);
+        setContextMenu(null);
+      }
+  };
+
   const saveNickname = () => {
       if (renameModal.pokemonId) {
           updatePokemon(renameModal.pokemonId, { nickname: renameModal.currentName });
@@ -539,6 +578,16 @@ function App() {
                 
                 <div className="h-6 w-px bg-zinc-800 mx-1"></div>
 
+                <BadgeTracker 
+                    badges={state.badges} 
+                    onUpdateBadges={updateBadges} 
+                    onOpenTeamAnalysis={() => setShowTeamAnalysis(true)}
+                    onOpenCatchCalc={() => alert("Catch Rate Calculator: Coming Soon!")}
+                    onOpenCombatSim={() => alert("Combat Simulator: Coming Soon!")}
+                />
+
+                <div className="h-6 w-px bg-zinc-800 mx-1"></div>
+
                 <div className="flex items-center gap-1">
                   <button onClick={resetData} className="p-2 text-zinc-400 hover:text-red-400 hover:bg-zinc-900 rounded-md transition" title="Reset All Progress">
                     <RotateCcw size={16} />
@@ -570,6 +619,19 @@ function App() {
           onDragOver={handleDragOver}
         >
           <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+            <TeamAnalysis 
+                isOpen={showTeamAnalysis}
+                onClose={() => setShowTeamAnalysis(false)}
+                pokemon={state.pokemon}
+            />
+            {selectedPokemonForDetails && (
+                <PokemonDetailsModal
+                    isOpen={!!selectedPokemonForDetails}
+                    onClose={() => setSelectedPokemonForDetails(null)}
+                    pokemon={selectedPokemonForDetails}
+                    onUpdate={updatePokemonDetails}
+                />
+            )}
             {/* Player 1 Area */}
             <div className="bg-zinc-900/40 rounded-xl border border-zinc-800 overflow-hidden">
               <div className="bg-zinc-900/60 border-b border-zinc-800 text-sm font-medium text-zinc-400 px-4 py-3 flex items-center justify-between">
@@ -683,11 +745,12 @@ function App() {
                className="fixed z-50 bg-zinc-900 border border-zinc-700 rounded-lg shadow-xl py-1 w-48 overflow-hidden text-sm"
                style={{ top: contextMenu.y, left: contextMenu.x }}
              >
+                <div className="bg-zinc-800/50 px-3 py-1 text-xs text-zinc-500 font-bold uppercase tracking-wider mb-1">Actions</div>
                 <button 
-                  onClick={() => handleRename(contextMenu.pokemonId)}
-                  className="w-full text-left px-4 py-2 hover:bg-zinc-800 text-zinc-200 flex items-center gap-2"
+                  onClick={() => handleDetails(contextMenu.pokemonId)}
+                  className="w-full text-left px-4 py-2 hover:bg-zinc-800 text-zinc-200 flex items-center gap-2 font-medium"
                 >
-                   Rename
+                   View Details / Edit
                 </button>
                 <button 
                   onClick={() => handleEvolve(contextMenu.pokemonId)}
