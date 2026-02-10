@@ -18,7 +18,7 @@ const BadgeTracker: React.FC<Props> = ({ badges = 0, onUpdateBadges, onOpenTeamA
   return (
     <div className="flex items-center gap-4 bg-zinc-900/50 backdrop-blur-md rounded-full px-4 py-2 border border-zinc-800 shadow-xl">
         {/* Badge Row */}
-        <div className="flex -space-x-1">
+        <div className="flex gap-1.5">
             {BADGES.map((b, i) => {
                 const isUnlocked = i < badges;
                 return (

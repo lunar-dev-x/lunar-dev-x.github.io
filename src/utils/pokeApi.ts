@@ -120,9 +120,14 @@ export const getPokemonDetails = async (species: string) => {
         const specData = await specRes.json();
 
         return {
+            id: data.id,
             types: data.types.map((t: any) => t.type.name),
             abilities: data.abilities.map((a: any) => a.ability.name),
-            moves: data.moves.map((m: any) => m.move.name),
+            moves: data.moves.map((m: any) => ({
+                name: m.move.name,
+                level: m.version_group_details[0]?.level_learned_at ?? 0,
+                method: m.version_group_details[0]?.move_learn_method?.name ?? 'unknown'
+            })),
             stats: data.stats, // { base_stat, stat: { name } }
             capture_rate: specData.capture_rate,
             base_experience: data.base_experience

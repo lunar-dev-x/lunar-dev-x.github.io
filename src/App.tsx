@@ -11,14 +11,15 @@ import Box from './components/Box';
 import RouteTracker from './components/RouteTracker';
 import PokemonCard from './components/PokemonCard';
 import SyncManager from './components/SyncManager';
-import { useMultiplayer } from './hooks/useMultiplayer.ts'; // Hook for Firebase sync
+import { useMultiplayer } from './hooks/useMultiplayer'; // Hook for Firebase sync
 import { motion } from 'framer-motion';
 
 import PokemonDetailsModal from './components/PokemonDetailsModal';
 import BadgeTracker from './components/BadgeTracker';
 import TeamAnalysis from './components/TeamAnalysis';
 import CatchCalculator from './components/CatchCalculator';
-import CombatSimulator from './components/CombatSimulator';
+// Helper for battle scenarios
+import CombatSimulator from './components/CombatSimulator.tsx';
 
 const INITIAL_ROUTES: Route[] = [
   { id: 'start', name: 'Nuvema Town (Starter)', status: 'empty' },
@@ -549,31 +550,16 @@ function App() {
         className="sticky top-0 z-40 w-full border-b border-zinc-800 bg-zinc-950/80 backdrop-blur supports-[backdrop-filter]:bg-zinc-950/60"
       >
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
-          <div className="flex flex-col">
-            <h1 className="text-xl font-bold tracking-tight bg-gradient-to-r from-emerald-400 to-cyan-400 bg-clip-text text-transparent">
-              SoulLinker
-            </h1>
-            <span className="text-[10px] text-zinc-500 font-mono tracking-wider uppercase">Unova Link v2.0</span>
-          </div>
-          
-          <div className="flex items-center gap-4">
-             {/* Death Counters - Removed from top bar per request, moving to player cards */}
-             
-             <div className="flex items-center gap-2">
-                <SyncManager 
-                  sessionId={sessionId}
-                  isConnected={isConnected}
-                  isHost={isHost}
-                  userCount={userCount}
-                  createSession={createSession}
-                  joinSession={joinSession}
-                  leaveSession={leaveSession}
-                  terminateSession={terminateSession}
-                />
-                
-                <div className="h-6 w-px bg-zinc-800 mx-1"></div>
-
-                <BadgeTracker 
+          <div className="flex items-center gap-6">
+              <div className="flex flex-col">
+                <h1 className="text-xl font-bold tracking-tight bg-gradient-to-r from-emerald-400 to-cyan-400 bg-clip-text text-transparent">
+                  SoulLinker
+                </h1>
+                <span className="text-[10px] text-zinc-500 font-mono tracking-wider uppercase">Unova Link v2.0</span>
+              </div>
+              
+              <div className="flex items-center gap-2">
+                 <BadgeTracker 
                     badges={state.badges || 0} 
                     onUpdateBadges={updateBadges} 
                     onOpenTeamAnalysis={() => setShowTeamAnalysis(true)}
@@ -596,6 +582,19 @@ function App() {
                   </button>
                 </div>
              </div>
+          </div>
+          
+          <div className="flex items-center gap-4">
+             <SyncManager 
+                  sessionId={sessionId}
+                  isConnected={isConnected}
+                  isHost={isHost}
+                  userCount={userCount}
+                  createSession={createSession}
+                  joinSession={joinSession}
+                  leaveSession={leaveSession}
+                  terminateSession={terminateSession}
+                />
           </div>
         </div>
       </motion.header>
