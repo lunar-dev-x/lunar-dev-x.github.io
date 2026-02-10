@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { DndContext, DragOverlay, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent, DragStartEvent } from '@dnd-kit/core';
 import { arrayMove, sortableKeyboardCoordinates } from '@dnd-kit/sortable';
 import { Pokemon, AppState, Route, PokemonStatus, Player } from './types';
-import { Save, Upload, RotateCcw, Skull } from 'lucide-react';
+import { Save, Upload, RotateCcw, Skull, Ban } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import { getDexId, getEvolutionOptions, getPreEvolution } from './utils/pokeApi';
 
@@ -535,10 +535,23 @@ function App() {
     return uniquePairs.size;
   };
 
+  const getFailedCount = (player: Player) => {
+      return (state.routes || []).filter(r => 
+          r.status === 'failed' && 
+          (!r.failedBy || r.failedBy.length === 0 || r.failedBy.includes(player))
+      ).length;
+  };
+
   const deaths = {
       p1: getDeathCount('player1'),
       p2: getDeathCount('player2'),
       p3: getDeathCount('player3'),
+  };
+
+  const failures = {
+      p1: getFailedCount('player1'),
+      p2: getFailedCount('player2'),
+      p3: getFailedCount('player3'),
   };
 
   return (
@@ -558,30 +571,13 @@ function App() {
                 <span className="text-[10px] text-zinc-500 font-mono tracking-wider uppercase">Unova Link v2.0</span>
               </div>
               
-              <div className="flex items-center gap-2">
-                 <BadgeTracker 
-                    badges={state.badges || 0} 
-                    onUpdateBadges={updateBadges} 
-                    onOpenTeamAnalysis={() => setShowTeamAnalysis(true)}
-                    onOpenCatchCalc={() => setShowCatchCalc(true)}
-                    onOpenCombatSim={() => setShowCombatSim(true)}
-                />
-
-                <div className="h-6 w-px bg-zinc-800 mx-1"></div>
-
-                <div className="flex items-center gap-1">
-                  <button onClick={resetData} className="p-2 text-zinc-400 hover:text-red-400 hover:bg-zinc-900 rounded-md transition" title="Reset All Progress">
-                    <RotateCcw size={16} />
-                  </button>
-                  <button onClick={exportData} className="p-2 text-zinc-400 hover:text-blue-400 hover:bg-zinc-900 rounded-md transition" title="Save Backup">
-                    <Save size={16} />
-                  </button>
-                  <input type="file" id="import-file" className="hidden" onChange={handleImport} accept=".json" />
-                  <button onClick={triggerImport} className="p-2 text-zinc-400 hover:text-emerald-400 hover:bg-zinc-900 rounded-md transition" title="Load Backup">
-                    <Upload size={16} />
-                  </button>
-                </div>
-             </div>
+              <BadgeTracker 
+                  badges={state.badges || 0} 
+                  onUpdateBadges={updateBadges} 
+                  onOpenTeamAnalysis={() => setShowTeamAnalysis(true)}
+                  onOpenCatchCalc={() => setShowCatchCalc(true)}
+                  onOpenCombatSim={() => setShowCombatSim(true)}
+              />
           </div>
           
           <div className="flex items-center gap-4">
@@ -595,6 +591,21 @@ function App() {
                   leaveSession={leaveSession}
                   terminateSession={terminateSession}
                 />
+            
+             <div className="h-6 w-px bg-zinc-800 mx-1"></div>
+
+             <div className="flex items-center gap-1">
+                <button onClick={resetData} className="p-2 text-zinc-400 hover:text-red-400 hover:bg-zinc-900 rounded-md transition" title="Reset All Progress">
+                  <RotateCcw size={16} />
+                </button>
+                <button onClick={exportData} className="p-2 text-zinc-400 hover:text-blue-400 hover:bg-zinc-900 rounded-md transition" title="Save Backup">
+                  <Save size={16} />
+                </button>
+                <input type="file" id="import-file" className="hidden" onChange={handleImport} accept=".json" />
+                <button onClick={triggerImport} className="p-2 text-zinc-400 hover:text-emerald-400 hover:bg-zinc-900 rounded-md transition" title="Load Backup">
+                  <Upload size={16} />
+                </button>
+              </div>
           </div>
         </div>
       </motion.header>
@@ -647,10 +658,16 @@ function App() {
                       placeholder="Player 1 Name"
                     />
                  </div>
-                 <span className="text-xs px-2 py-0.5 bg-blue-500/10 text-blue-400 rounded">Host</span>
-                 <div className="flex items-center gap-1.5 px-2 py-1 bg-red-500/10 rounded border border-red-500/20" title="Deaths Caused">
-                    <Skull size={12} className="text-red-400" />
-                    <span className="text-xs font-bold text-red-200">{deaths.p1}</span>
+                 <div className="flex items-center gap-3">
+                    <span className="text-xs px-2 py-0.5 bg-blue-500/10 text-blue-400 rounded">Host</span>
+                    <div className="flex items-center gap-1.5 px-2 py-1 bg-yellow-500/10 rounded border border-yellow-500/20" title="Failed Encounters">
+                        <Ban size={12} className="text-yellow-400" />
+                        <span className="text-xs font-bold text-yellow-200">{failures.p1}</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 px-2 py-1 bg-red-500/10 rounded border border-red-500/20" title="Deaths Caused">
+                        <Skull size={12} className="text-red-400" />
+                        <span className="text-xs font-bold text-red-200">{deaths.p1}</span>
+                    </div>
                  </div>
               </div>
               <div className="p-4 space-y-6">
@@ -671,9 +688,15 @@ function App() {
                       placeholder="Player 2 Name"
                     />
                  </div>
-                 <div className="flex items-center gap-1.5 px-2 py-1 bg-red-500/10 rounded border border-red-500/20" title="Deaths Caused">
-                    <Skull size={12} className="text-red-400" />
-                    <span className="text-xs font-bold text-red-200">{deaths.p2}</span>
+                 <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-1.5 px-2 py-1 bg-yellow-500/10 rounded border border-yellow-500/20" title="Failed Encounters">
+                        <Ban size={12} className="text-yellow-400" />
+                        <span className="text-xs font-bold text-yellow-200">{failures.p2}</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 px-2 py-1 bg-red-500/10 rounded border border-red-500/20" title="Deaths Caused">
+                        <Skull size={12} className="text-red-400" />
+                        <span className="text-xs font-bold text-red-200">{deaths.p2}</span>
+                    </div>
                  </div>
               </div>
               <div className="p-4 space-y-6">
@@ -694,9 +717,15 @@ function App() {
                       placeholder="Player 3 Name"
                     />
                  </div>
-                 <div className="flex items-center gap-1.5 px-2 py-1 bg-red-500/10 rounded border border-red-500/20" title="Deaths Caused">
-                    <Skull size={12} className="text-red-400" />
-                    <span className="text-xs font-bold text-red-200">{deaths.p3}</span>
+                 <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-1.5 px-2 py-1 bg-yellow-500/10 rounded border border-yellow-500/20" title="Failed Encounters">
+                        <Ban size={12} className="text-yellow-400" />
+                        <span className="text-xs font-bold text-yellow-200">{failures.p3}</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 px-2 py-1 bg-red-500/10 rounded border border-red-500/20" title="Deaths Caused">
+                        <Skull size={12} className="text-red-400" />
+                        <span className="text-xs font-bold text-red-200">{deaths.p3}</span>
+                    </div>
                  </div>
               </div>
               <div className="p-4 space-y-6">

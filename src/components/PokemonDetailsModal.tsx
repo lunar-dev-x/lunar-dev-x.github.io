@@ -15,6 +15,7 @@ interface Props {
 const PokemonDetailsModal: React.FC<Props> = ({ pokemon, onUpdate, onClose }) => {
   const [nickname, setNickname] = useState(pokemon.nickname || '');
   const [item, setItem] = useState(pokemon.item || '');
+  const [level, setLevel] = useState(pokemon.level || 5);
   const [moves, setMoves] = useState<string[]>(pokemon.moves || ['', '', '', '']);
   const [types, setTypes] = useState<string[]>(pokemon.types || []);
   const [possibleMoves, setPossibleMoves] = useState<string[]>([]);
@@ -43,6 +44,7 @@ const PokemonDetailsModal: React.FC<Props> = ({ pokemon, onUpdate, onClose }) =>
     onUpdate(pokemon.id, {
         nickname,
         item,
+        level,
         moves,
         types // Ensure types vary with evolutions if re-fetched
     });
@@ -86,6 +88,14 @@ const PokemonDetailsModal: React.FC<Props> = ({ pokemon, onUpdate, onClose }) =>
                           value={item}
                           onChange={e => setItem(e.target.value)}
                           placeholder="Held Item..."
+                       />
+                       <input 
+                          type="number"
+                          className="bg-zinc-950/50 border border-zinc-700 rounded px-2 py-1 text-xs text-zinc-300 outline-none w-16 focus:border-indigo-500 text-center"
+                          value={level}
+                          onChange={e => setLevel(Math.max(1, Math.min(100, parseInt(e.target.value) || 1)))}
+                          placeholder="Lv"
+                          title="Level"
                        />
                    </div>
                </div>

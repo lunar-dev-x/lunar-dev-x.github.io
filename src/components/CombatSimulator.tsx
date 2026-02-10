@@ -13,6 +13,7 @@ interface Props {
   isOpen: boolean;
   onClose: () => void;
   allPokemon: Pokemon[];
+  playerNames?: { player1: string; player2: string; player3: string }; // Added names
 }
 
 interface StatProfile {
@@ -34,6 +35,15 @@ interface StatStages {
     evasion: number;
 }
 
+interface ExtendedMove {
+    name: string;
+    power?: number;
+    accuracy?: number;
+    type: string;
+    damage_class: string;
+    priority?: number;
+}
+
 interface BattlePokemon extends Pokemon {
     currentHp: number;
     maxHp: number;    
@@ -44,6 +54,12 @@ interface BattlePokemon extends Pokemon {
     
     condition: string; 
     volatiles: string[];
+    
+    loadedMoves?: ExtendedMove[]; // Details for the 4 moves
+    
+    // Override optionals to be definite for battle context (we ensure they exist)
+    level: number;
+    types: string[]; 
 }
 
 interface EnemyMon {
@@ -51,13 +67,18 @@ interface EnemyMon {
     level: number;
     types: string[]; 
     moves: string[]; 
-    moveDetails: any[]; 
+    moveDetails: ExtendedMove[]; 
     
     baseStats: StatProfile;
     realStats: StatProfile;
     stages: StatStages;
     
     id: number;
+
+    // Added missing props
+    currentHp: number;
+    maxHp: number;
+    condition: string; 
 }
 
 // --- Constants ---
@@ -92,7 +113,58 @@ const calculateStat = (base: number, level: number, isHp: boolean) => {
     }
 };
 
-const CombatSimulator: React.FC<Props> = ({ isOpen, onClose, allPokemon }) => {
+const calculateDamage = (
+    attacker: BattlePokemon | EnemyMon, 
+    defender: BattlePokemon | EnemyMon, 
+    move: ExtendedMove
+) => {
+    // 1. Determine Stats
+    const isPhysical = move.damage_class === 'physical';
+    const isSpecial = move.damage_class === 'special';
+    
+    if (!isPhysical && !isSpecial) return { min: 0, max: 0, typeEff: 1 }; // Status moves
+
+    const atkStat = isPhysical ? attacker.realStats.attack : attacker.realStats['special-attack'];
+    const defStat = isPhysical ? defender.realStats.defense : defender.realStats['special-defense'];
+    
+    const atkStage = isPhysical ? attacker.stages.attack : attacker.stages['special-attack'];
+    const defStage = isPhysical ? defender.stages.defense : defender.stages['special-defense'];
+
+    const a = atkStat * STAGE_MULTIPLIERS[atkStage];
+    const d = defStat * STAGE_MULTIPLIERS[defStage];
+
+    // 2. Base Damage
+    // Level formula: ((2 * Level / 5 + 2) * Power * A / D) / 50 + 2
+    const level = attacker.level || 50; 
+    let base = Math.floor((2 * level / 5) + 2);
+    base = Math.floor(base * (move.power || 0) * a / d);
+    base = Math.floor(base / 50) + 2;
+
+    // 3. Modifiers
+    // STAB
+    const attackerTypes = attacker.types || [];
+    const stab = attackerTypes.includes(move.type) ? 1.5 : 1;
+    
+    // Type Effectiveness
+    let typeEff = 1;
+    (defender.types || []).forEach(t => {
+        if (TYPE_CHART[move.type] && TYPE_CHART[move.type][t] !== undefined) {
+             typeEff *= TYPE_CHART[move.type][t];
+        }
+    });
+
+    // Burn (Physical only) - ignored for now as we don't track burn source perfectly
+    // const burnMod = (isPhysical && attacker.condition === 'burn') ? 0.5 : 1;
+
+    const modifier = stab * typeEff;
+
+    const minDmg = Math.floor(base * modifier * 0.85);
+    const maxDmg = Math.floor(base * modifier * 1.00);
+
+    return { min: minDmg, max: maxDmg, typeEff };
+};
+
+const CombatSimulator: React.FC<Props> = ({ isOpen, onClose, allPokemon, playerNames }) => {
   // --- Global State ---
   const [activeOwner, setActiveOwner] = useState<'player1' | 'player2' | 'player3'>('player1');
   const [activeBox, setActiveBox] = useState<'party' | 'box'>('party'); 
@@ -128,19 +200,22 @@ const CombatSimulator: React.FC<Props> = ({ isOpen, onClose, allPokemon }) => {
         
         const initialParty: BattlePokemon[] = targetPokemon.map(p => ({
             ...p,
+            level: p.level || 50, // Default to 50
+            types: p.types || [], // Default to empty (will load)
             currentHp: 100,
             maxHp: 100,
             baseStats: { hp: 50, attack: 50, defense: 50, 'special-attack': 50, 'special-defense': 50, speed: 50 },
             realStats: { hp: 100, attack: 50, defense: 50, 'special-attack': 50, 'special-defense': 50, speed: 50 },
             stages: { ...DEFAULT_STAGES },
             condition: 'none',
-            volatiles: []
+            volatiles: [],
+            loadedMoves: []
         }));
 
         setBattleParty(initialParty);
         if (initialParty.length > 0) setActivePokemonId(initialParty[0].id);
         
-        // Async Fetch Stats
+        // Async Fetch Stats & Moves
         initialParty.forEach(p => {
              getPokemonDetails(p.species).then(d => {
                  if (d) {
@@ -167,6 +242,17 @@ const CombatSimulator: React.FC<Props> = ({ isOpen, onClose, allPokemon }) => {
                      ));
                  }
              });
+
+             // Fetch Moves Details
+             if (p.moves && p.moves.length > 0) {
+                 const movePromises = p.moves.filter(m => m).map(m => getMoveDetails(m));
+                 Promise.all(movePromises).then(movesData => {
+                     const validMoves = movesData.filter(m => m) as ExtendedMove[];
+                     setBattleParty(prev => prev.map(mons => 
+                        mons.id === p.id ? { ...mons, loadedMoves: validMoves } : mons
+                     ));
+                 });
+             }
         });
     }
   }, [isOpen, activeOwner, activeBox, allPokemon]); 
@@ -289,7 +375,11 @@ const CombatSimulator: React.FC<Props> = ({ isOpen, onClose, allPokemon }) => {
                moveDetails: finalMoveDetails.filter(d => d), 
                baseStats: baseS,
                realStats: realS,
-               stages: { ...DEFAULT_STAGES }
+               stages: { ...DEFAULT_STAGES },
+               // New props
+               currentHp: realS.hp,
+               maxHp: realS.hp,
+               condition: 'none'
            });
            setActiveTab('battle');
        } catch (e) {
@@ -300,110 +390,152 @@ const CombatSimulator: React.FC<Props> = ({ isOpen, onClose, allPokemon }) => {
 
   // --- SOLVER LOGIC ---
   
-  const getMatchupScore = (myMon: BattlePokemon, enemy: EnemyMon) => {
-      if (!myMon.realStats || !enemy.realStats) return { score: 0, reasons: [] };
-      let score = 0;
-      const reasons: string[] = [];
+  const analyzeMatchup = (myMon: BattlePokemon, enemy: EnemyMon) => {
+      if (!myMon.realStats || !enemy.realStats) return null;
 
-      // 1. Speed Evaluation
-      const mySpeed = myMon.realStats.speed * STAGE_MULTIPLIERS[myMon.stages.speed];
-      const enSpeed = enemy.realStats.speed * STAGE_MULTIPLIERS[enemy.stages.speed];
+      // 1. Speed Check
+      const mySpeed = myMon.realStats.speed * STAGE_MULTIPLIERS[myMon.stages.speed] * (myMon.condition === 'paralysis' ? 0.5 : 1);
+      const enSpeed = enemy.realStats.speed * STAGE_MULTIPLIERS[enemy.stages.speed] * (enemy.condition === 'paralysis' ? 0.5 : 1);
       
-      // Paralysis
-      const adjustedMySpeed = myMon.condition === 'paralysis' ? mySpeed * 0.5 : mySpeed;
+      let speedResult: 'faster' | 'slower' | 'tie' = 'tie';
+      if (mySpeed > enSpeed) speedResult = 'faster';
+      else if (mySpeed < enSpeed) speedResult = 'slower';
 
-      if (adjustedMySpeed >= enSpeed) {
-          score += 40;
-          reasons.push(`Faster`);
-      } else {
-          score -= 30;
-          reasons.push(`Slower`);
-      }
+      // 2. Incoming Damage (Survival)
+      let maxIncomingPct = 0;
+      let worstEnemyMoveStr = 'None';
+      let enemyBestMove: ExtendedMove | null = null;
+      let threateningMoves: { name: string, pct: number }[] = [];
 
-      // 2. Defensive (Taking Hits)
-      let maxIncomingMultiplier = 0;
-      let worstMove = '';
-      
-      if (enemy.moveDetails.length > 0) {
-          enemy.moveDetails.forEach(m => {
-              if (m.damage_class === 'status') return;
-              let mult = 1;
-              myMon.types?.forEach(t => {
-                   if (TYPE_CHART[m.type] && TYPE_CHART[m.type][t] !== undefined) mult *= TYPE_CHART[m.type][t];
-              });
-              if (mult > maxIncomingMultiplier) {
-                  maxIncomingMultiplier = mult;
-                  worstMove = m.name;
-              }
-          });
-      } else {
-           // Fallback to Type only
-           enemy.types.forEach(et => {
-               let mult = 1;
-               myMon.types?.forEach(t => {
-                   if (TYPE_CHART[et] && TYPE_CHART[et][t] !== undefined) mult *= TYPE_CHART[et][t];
-               });
-               if (mult > maxIncomingMultiplier) maxIncomingMultiplier = mult;
-           });
-      }
-
-      if (maxIncomingMultiplier >= 4) {
-          score -= 80;
-          reasons.push(`Weak 4x to ${worstMove || 'Enemy'}`);
-      } else if (maxIncomingMultiplier >= 2) {
-          score -= 40;
-          reasons.push(`Weak 2x to ${worstMove || 'Enemy'}`);
-      } else if (maxIncomingMultiplier < 1) {
-          score += 20;
-          reasons.push(`Resists Enemy`);
-      } else if (maxIncomingMultiplier === 0) {
-          score += 60;
-          reasons.push(`Immune to ${worstMove}`);
-      }
-
-      // 3. Offensive (Dealing Damage)
-      let maxOutgoingMultiplier = 0;
-      myMon.types?.forEach(mt => {
-           let mult = 1; // STAB assumed
-           enemy.types?.forEach(et => {
-               if (TYPE_CHART[mt] && TYPE_CHART[mt][et] !== undefined) mult *= TYPE_CHART[mt][et];
-           });
-           if (mult > maxOutgoingMultiplier) maxOutgoingMultiplier = mult;
+      enemy.moveDetails.forEach(m => {
+          if (m.damage_class === 'status') return;
+          const dmg = calculateDamage(enemy, myMon, m);
+          // Use Max Roll for safety
+          const pct = Math.min(100, Math.ceil((dmg.max / myMon.maxHp) * 100));
+          if (pct > maxIncomingPct) {
+              maxIncomingPct = pct;
+              worstEnemyMoveStr = m.name;
+              enemyBestMove = m;
+          }
+          if (pct >= 50) threateningMoves.push({ name: m.name, pct });
       });
-      // Boost check
-      if (myMon.stages.attack > 0 || myMon.stages['special-attack'] > 0) {
-          score += 20;
-          reasons.push("Boosted");
+      // Fallback if enemy has no moves loaded (unlikely via smart load) or only status
+      if (maxIncomingPct === 0 && enemy.moveDetails.every(m => m.damage_class === 'status')) {
+          worstEnemyMoveStr = 'Status Only';
       }
 
-      if (maxOutgoingMultiplier >= 4) {
-          score += 80;
-          reasons.push("Has 4x STAB");
-      } else if (maxOutgoingMultiplier >= 2) {
-          score += 40;
-          reasons.push("Has 2x STAB");
-      } else if (maxOutgoingMultiplier < 1) {
-          score -= 20;
-          reasons.push("Resisted");
-      }
+      // 3. Outgoing Damage (Kill Potential)
+      let maxOutgoingPct = 0;
+      let bestMoveStr = 'None';
+      let myBestMove: ExtendedMove | null = null;
+      let killMoves: { name: string, pct: number }[] = [];
 
-      // 4. Status/Condition
-      if (myMon.currentHp === 0) score = -9999;
-      if (myMon.condition === 'sleep' || myMon.condition === 'freeze') {
-          score -= 50;
-          reasons.push("Incapacitated");
-      }
+      // Use 'Struggle' logic as fallback, or simple type match if no moves known
+      const myMovesToTest = myMon.loadedMoves && myMon.loadedMoves.length > 0 
+          ? myMon.loadedMoves 
+          : [{ name: 'Unknown Move', power: 60, type: (myMon.types || [])[0] || 'normal', damage_class: 'physical' } as ExtendedMove]; 
 
-      return { score, reasons };
+      myMovesToTest.forEach(m => {
+          if (m.damage_class === 'status') return;
+          const dmg = calculateDamage(myMon, enemy, m);
+          // Use Min Roll for reliability
+          const pct = Math.floor((dmg.min / enemy.maxHp) * 100); 
+          if (pct > maxOutgoingPct) {
+              maxOutgoingPct = pct;
+              bestMoveStr = m.name;
+              myBestMove = m;
+          }
+          if (pct >= 50) killMoves.push({ name: m.name, pct });
+      });
+
+      // 4. Turn Analysis
+      // turnsToDie: how many hits from enemy to kill me?
+      // If pct is 0, turns is infinity
+      const turnsToDie = maxIncomingPct > 0 ? Math.ceil(100 / maxIncomingPct) : 999;
+      
+      // turnsToWin: how many hits from me to kill enemy?
+      const turnsToWin = maxOutgoingPct > 0 ? Math.ceil(100 / maxOutgoingPct) : 999;
+
+      // 5. Winning Score & Safety
+      let score = 0;
+      let safetyRating: 'Safe' | 'Trade' | 'Risky' | 'Dead' = 'Neutral' as any;
+
+      // Simulation
+      if (speedResult === 'faster') {
+          // I go first.
+          const hitsTaken = turnsToWin - 1; 
+          const damageTaken = hitsTaken * maxIncomingPct;
+          
+          if (hitsTaken < turnsToDie) {
+               // I win
+               if (damageTaken === 0) {
+                   safetyRating = 'Safe';
+                   score = 100 + (maxOutgoingPct); 
+               } else if (damageTaken < 50) {
+                   safetyRating = 'Safe';
+                   score = 80 - damageTaken;
+               } else if (damageTaken < 100) {
+                   safetyRating = 'Trade';
+                   score = 60 - damageTaken;
+               } else {
+                   safetyRating = 'Dead'; 
+                   score = -50;
+               }
+          } else {
+              safetyRating = 'Dead';
+              score = -100 + maxOutgoingPct; 
+          }
+      } else {
+          // They go first.
+          const hitsTaken = turnsToWin;
+          const damageTaken = hitsTaken * maxIncomingPct;
+
+          if (hitsTaken < turnsToDie) {
+               // I survive the required hits
+               if (damageTaken < 50) {
+                   safetyRating = 'Safe';
+                   score = 70 - damageTaken;
+               } else if (damageTaken < 100) {
+                   safetyRating = 'Trade';
+                   score = 50 - damageTaken;
+               } else {
+                   safetyRating = 'Dead';
+                   score = -50;
+               }
+          } else {
+               safetyRating = 'Dead';
+               score = -100 + maxOutgoingPct;
+          }
+      }
+      
+      if (maxOutgoingPct >= 100) score += 50; 
+      else if (maxOutgoingPct >= 50) score += 20;
+
+      return {
+          score,
+          speedResult,
+          mySpeed,
+          enSpeed,
+          maxIncomingPct,
+          worstEnemyMoveStr,
+          enemyBestMove,
+          maxOutgoingPct,
+          bestMoveStr,
+          myBestMove,
+          turnsToWin,
+          turnsToDie,
+          safetyRating,
+      };
   };
   
   const sortedLeads = useMemo(() => {
       if (!enemyData || battleParty.length === 0) return [];
+      
       return battleParty
         .filter(p => p.currentHp > 0)
         .map(p => {
-            const { score, reasons } = getMatchupScore(p, enemyData);
-            return { id: p.id, score, reasons, pokemon: p };
+            const analysis = analyzeMatchup(p, enemyData);
+            return { id: p.id, pokemon: p, analysis, score: analysis?.score || -999 };
         })
         .sort((a, b) => b.score - a.score);
   }, [battleParty, enemyData]);
@@ -441,11 +573,14 @@ const CombatSimulator: React.FC<Props> = ({ isOpen, onClose, allPokemon }) => {
                  </div>
 
                  <div className="flex bg-zinc-900 rounded-lg p-1 border border-zinc-800">
-                    {(['player1', 'player2', 'player3'] as const).map(p => (
-                        <button key={p} onClick={() => setActiveOwner(p)} className={`px-3 py-1 text-xs font-bold uppercase rounded ${activeOwner === p ? 'bg-zinc-700 text-white' : 'text-zinc-600'}`}>
-                            {p.replace('player','P')}
-                        </button>
-                    ))}
+                    {(['player1', 'player2', 'player3'] as const).map(p => {
+                        const name = playerNames?.[p as keyof typeof playerNames] || p.replace('player', 'P');
+                        return (
+                            <button key={p} onClick={() => setActiveOwner(p)} className={`px-3 py-1 text-xs font-bold uppercase rounded ${activeOwner === p ? 'bg-zinc-700 text-white' : 'text-zinc-600'}`}>
+                                {name}
+                            </button>
+                        );
+                    })}
                  </div>
                  <button onClick={onClose} className="p-2 hover:bg-zinc-800 rounded-full transition"><X className="w-5 h-5 text-zinc-400" /></button>
            </div>
@@ -705,7 +840,7 @@ const CombatSimulator: React.FC<Props> = ({ isOpen, onClose, allPokemon }) => {
                         <div className="flex-1 overflow-y-auto p-6 bg-zinc-950">
                             
                             {/* Best Lead Recommendation */}
-                            {sortedLeads.length > 0 && (
+                            {sortedLeads.length > 0 && sortedLeads[0].analysis && (
                                 <div className="mb-6">
                                     <h3 className="text-zinc-500 font-bold text-xs uppercase mb-3 flex items-center gap-2">
                                         <Shield className="w-4 h-4 text-emerald-500" /> Recommended Lead
@@ -717,15 +852,31 @@ const CombatSimulator: React.FC<Props> = ({ isOpen, onClose, allPokemon }) => {
                                         </div>
                                         <div className="flex-1">
                                             <div className="text-xl font-bold text-white leading-none mb-1">{sortedLeads[0].pokemon.nickname || sortedLeads[0].pokemon.species}</div>
-                                            <div className="flex flex-wrap gap-1.5">
-                                                {sortedLeads[0].reasons.map((r, i) => (
-                                                    <span key={i} className="text-[10px] bg-emerald-500/10 text-emerald-300 px-2 py-0.5 rounded border border-emerald-500/20">{r}</span>
-                                                ))}
+                                            
+                                            <div className="flex flex-col gap-1 mt-2">
+                                                 <div className="flex items-center gap-2 text-xs">
+                                                      <span className={`font-bold px-1.5 py-0.5 rounded ${
+                                                          sortedLeads[0].analysis.safetyRating === 'Safe' ? 'bg-emerald-500/20 text-emerald-400' :
+                                                          sortedLeads[0].analysis.safetyRating === 'Trade' ? 'bg-yellow-500/20 text-yellow-400' :
+                                                          'bg-red-500/20 text-red-400'
+                                                      }`}>{sortedLeads[0].analysis.safetyRating.toUpperCase()} MATCHUP</span>
+                                                      
+                                                      <span className="text-zinc-500">
+                                                         {sortedLeads[0].analysis.speedResult === 'faster' ? 'Outspeeds' : sortedLeads[0].analysis.speedResult === 'tie' ? 'Speed Tie' : 'Outspeeded'}
+                                                      </span>
+                                                 </div>
+
+                                                 <div className="text-xs text-zinc-400">
+                                                     <span className="text-zinc-500">Plan:</span> Use <span className="font-bold text-zinc-200">{sortedLeads[0].analysis.bestMoveStr}</span> ({sortedLeads[0].analysis.maxOutgoingPct}% min)
+                                                     <span className="mx-2">|</span>
+                                                     <span className="text-zinc-500">Risk:</span> Takes {sortedLeads[0].analysis.maxIncomingPct}% max from {sortedLeads[0].analysis.worstEnemyMoveStr}
+                                                 </div>
                                             </div>
                                         </div>
-                                        <div className="text-right px-4 border-l border-emerald-500/20">
-                                            <div className="text-2xl font-black text-emerald-400">{sortedLeads[0].score > 0 ? '+' : ''}{sortedLeads[0].score}</div>
-                                            <div className="text-[10px] text-zinc-500 uppercase tracking-wider">Score</div>
+                                        <div className="text-right px-4 border-l border-emerald-500/20 flex flex-col items-end justify-center min-w-[80px]">
+                                            <div className="text-2xl font-black text-emerald-400">
+                                                {sortedLeads[0].analysis.turnsToWin} <span className="text-xs font-normal text-emerald-600">Turn KO</span>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
@@ -734,20 +885,31 @@ const CombatSimulator: React.FC<Props> = ({ isOpen, onClose, allPokemon }) => {
                             {/* Rest of Party */}
                             <h3 className="text-zinc-500 font-bold text-xs uppercase mb-3">Party Matchups</h3>
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                                {sortedLeads.slice(1).map(item => (
-                                    <div key={item.id} className={`bg-zinc-900 border p-3 rounded-lg flex items-center gap-3 transition hover:bg-zinc-800 ${item.score > 0 ? 'border-zinc-800' : 'border-red-900/30 bg-red-900/5'}`}>
+                                {sortedLeads.slice(1).map(item => {
+                                    if (!item.analysis) return null;
+                                    const isSafe = item.analysis.safetyRating === 'Safe';
+                                    const isDead = item.analysis.safetyRating === 'Dead';
+                                    
+                                    return (
+                                    <div key={item.id} className={`bg-zinc-900 border p-3 rounded-lg flex items-center gap-3 transition hover:bg-zinc-800 ${isSafe ? 'border-zinc-800' : isDead ? 'border-red-900/30 bg-red-900/5' : 'border-yellow-900/30 bg-yellow-900/5'}`}>
                                         <img src={`https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${item.pokemon.dexId}.png`} className="w-10 h-10 pixelated opacity-80" />
                                         <div className="flex-1 min-w-0">
                                             <div className="text-sm font-bold truncate text-zinc-300">{item.pokemon.nickname || item.pokemon.species}</div>
-                                            <div className="flex gap-1 overflow-hidden">
-                                                 <span className={`text-[10px] truncate ${item.score > 0 ? 'text-zinc-500' : 'text-red-400'}`}>{item.reasons[0]}</span>
+                                            <div className="flex flex-col gap-0.5 overflow-hidden">
+                                                 <div className="text-[10px] text-zinc-500 flex justify-between">
+                                                     <span>Deal: {item.analysis.maxOutgoingPct}%</span>
+                                                     <span>Take: {item.analysis.maxIncomingPct}%</span>
+                                                 </div>
+                                                 <div className={`text-[10px] font-bold ${isDead ? 'text-red-500' : 'text-zinc-400'}`}>
+                                                     {isDead ? `Dies in ${item.analysis.turnsToDie} turn(s)` : `Wins in ${item.analysis.turnsToWin} turn(s)`}
+                                                 </div>
                                             </div>
                                         </div>
-                                        <div className={`text-lg font-bold ${item.score >= 0 ? 'text-zinc-500' : 'text-red-500'}`}>
-                                            {item.score > 0 ? '+' : ''}{item.score}
+                                        <div className={`text-lg font-bold ${isSafe ? 'text-zinc-600' : 'text-red-500'}`}>
+                                            {item.analysis.safetyRating === 'Safe' ? 'OK' : '!!'}
                                         </div>
                                     </div>
-                                ))}
+                                )})}
                             </div>
                             
                             {/* Battle Advice Footer */}
