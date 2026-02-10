@@ -105,14 +105,45 @@ export const getPokemonDetails = async (species: string) => {
         if (!res.ok) return null;
         const data = await res.json();
         
+        // Fetch Species data for Capture Rate
+        const specRes = await fetch(data.species.url);
+        const specData = await specRes.json();
+
         return {
             types: data.types.map((t: any) => t.type.name),
             abilities: data.abilities.map((a: any) => a.ability.name),
             moves: data.moves.map((m: any) => m.move.name),
-            stats: data.stats
+            stats: data.stats, // { base_stat, stat: { name } }
+            capture_rate: specData.capture_rate,
+            base_experience: data.base_experience
         };
     } catch (e) {
         console.error("Detail fetch failed", e);
         return null;
     }
+};
+
+export const getMoveDetails = async (moveName: string) => {
+    try {
+        const res = await fetch(`https://pokeapi.co/api/v2/move/${moveName.toLowerCase().replace(/ /g, '-')}`);
+        if (!res.ok) return null;
+        const data = await res.json();
+        return {
+            name: data.name,
+            type: data.type.name,
+            power: data.power,
+            accuracy: data.accuracy,
+            damage_class: data.damage_class.name, // physical, special, status
+            priority: data.priority
+        };
+    } catch (e) {
+        console.error("Move fetch failed", e);
+        return null;
+    }
+};
+
+export const getItems = async (): Promise<string[]> => {
+    // Just cache common items, no need to fetch 1000 items from pokeapi every time
+    // Importing from separate file to avoid massive file here
+    return (await import('./itemList')).COMMON_ITEMS;
 };

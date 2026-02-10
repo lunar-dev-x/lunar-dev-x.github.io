@@ -15,6 +15,7 @@ export interface Pokemon {
   incidentDescription?: string; // Description of how they died
   
   // New details
+  level?: number;
   moves?: string[]; // Array of 4 move names
   ability?: string;
   item?: string;

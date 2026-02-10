@@ -17,6 +17,8 @@ import { motion } from 'framer-motion';
 import PokemonDetailsModal from './components/PokemonDetailsModal';
 import BadgeTracker from './components/BadgeTracker';
 import TeamAnalysis from './components/TeamAnalysis';
+import CatchCalculator from './components/CatchCalculator';
+import CombatSimulator from './components/CombatSimulator';
 
 const INITIAL_ROUTES: Route[] = [
   { id: 'start', name: 'Nuvema Town (Starter)', status: 'empty' },
@@ -111,6 +113,8 @@ function App() {
   });
 
   const [showTeamAnalysis, setShowTeamAnalysis] = useState(false);
+  const [showCatchCalc, setShowCatchCalc] = useState(false);
+  const [showCombatSim, setShowCombatSim] = useState(false);
   const [selectedPokemonForDetails, setSelectedPokemonForDetails] = useState<Pokemon | null>(null);
 
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -573,8 +577,8 @@ function App() {
                     badges={state.badges || 0} 
                     onUpdateBadges={updateBadges} 
                     onOpenTeamAnalysis={() => setShowTeamAnalysis(true)}
-                    onOpenCatchCalc={() => alert("Catch Rate Calculator: Coming Soon!")}
-                    onOpenCombatSim={() => alert("Combat Simulator: Coming Soon!")}
+                    onOpenCatchCalc={() => setShowCatchCalc(true)}
+                    onOpenCombatSim={() => setShowCombatSim(true)}
                 />
 
                 <div className="h-6 w-px bg-zinc-800 mx-1"></div>
@@ -614,6 +618,15 @@ function App() {
                 isOpen={showTeamAnalysis}
                 onClose={() => setShowTeamAnalysis(false)}
                 pokemon={state.pokemon}
+            />
+            <CatchCalculator 
+                isOpen={showCatchCalc}
+                onClose={() => setShowCatchCalc(false)}
+            />
+            <CombatSimulator
+                isOpen={showCombatSim}
+                onClose={() => setShowCombatSim(false)}
+                userParty={state.pokemon.filter(p => p.status === 'party')}
             />
             {selectedPokemonForDetails && (
                 <PokemonDetailsModal

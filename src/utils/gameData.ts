@@ -22,6 +22,27 @@ export const TYPE_CHART: Record<string, Record<string, number>> = {
   steel:    { fire: 0.5, water: 0.5, electric: 0.5, ice: 2, rock: 2, steel: 0.5 }
 };
 
+export const TYPE_COLORS: Record<string, string> = {
+  normal: '#A8A77A',
+  fire: '#EE8130',
+  water: '#6390F0',
+  electric: '#F7D02C',
+  grass: '#7AC74C',
+  ice: '#96D9D6',
+  fighting: '#C22E28',
+  poison: '#A33EA1',
+  ground: '#E2BF65',
+  flying: '#A98FF3',
+  psychic: '#F95587',
+  bug: '#A6B91A',
+  rock: '#B6A136',
+  ghost: '#735797',
+  dragon: '#6F35FC',
+  dark: '#705746',
+  steel: '#B7B7CE',
+  fairy: '#D685AD' // Just in case, though Gen 5
+};
+
 export const getTypeEffectiveness = (defendingTypes: string[]) => {
   const effectiveness: Record<string, number> = {};
   const allTypes = Object.keys(TYPE_CHART);
@@ -46,14 +67,14 @@ export const getTypeEffectiveness = (defendingTypes: string[]) => {
 // levelCap = The strict Nuzlocke cap (Gym Leader's Ace).
 // obedience = The max level outsiders will obey you AFTER getting this badge.
 export const BADGES = [
-    { id: 'trio', name: 'Trio Badge', levelCap: 14, obedience: 20, img: 'https://raw.githubusercontent.com/msikma/pokesprite/master/items/badges/trio-badge.png' },
-    { id: 'basic', name: 'Basic Badge', levelCap: 20, obedience: 30, img: 'https://raw.githubusercontent.com/msikma/pokesprite/master/items/badges/basic-badge.png' },
-    { id: 'insect', name: 'Insect Badge', levelCap: 23, obedience: 40, img: 'https://raw.githubusercontent.com/msikma/pokesprite/master/items/badges/insect-badge.png' },
-    { id: 'bolt', name: 'Bolt Badge', levelCap: 27, obedience: 50, img: 'https://raw.githubusercontent.com/msikma/pokesprite/master/items/badges/bolt-badge.png' },
-    { id: 'quake', name: 'Quake Badge', levelCap: 31, obedience: 60, img: 'https://raw.githubusercontent.com/msikma/pokesprite/master/items/badges/quake-badge.png' },
-    { id: 'jet', name: 'Jet Badge', levelCap: 35, obedience: 70, img: 'https://raw.githubusercontent.com/msikma/pokesprite/master/items/badges/jet-badge.png' },
-    { id: 'freeze', name: 'Freeze Badge', levelCap: 39, obedience: 80, img: 'https://raw.githubusercontent.com/msikma/pokesprite/master/items/badges/freeze-badge.png' },
-    { id: 'legend', name: 'Legend Badge', levelCap: 43, obedience: 100, img: 'https://raw.githubusercontent.com/msikma/pokesprite/master/items/badges/legend-badge.png' }
+    { id: 'trio', name: 'Trio Badge', levelCap: 14, obedience: 20, img: 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/items/trio-badge.png' },
+    { id: 'basic', name: 'Basic Badge', levelCap: 20, obedience: 30, img: 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/items/basic-badge.png' },
+    { id: 'insect', name: 'Insect Badge', levelCap: 23, obedience: 40, img: 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/items/insect-badge.png' },
+    { id: 'bolt', name: 'Bolt Badge', levelCap: 27, obedience: 50, img: 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/items/bolt-badge.png' },
+    { id: 'quake', name: 'Quake Badge', levelCap: 31, obedience: 60, img: 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/items/quake-badge.png' },
+    { id: 'jet', name: 'Jet Badge', levelCap: 35, obedience: 70, img: 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/items/jet-badge.png' },
+    { id: 'freeze', name: 'Freeze Badge', levelCap: 39, obedience: 80, img: 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/items/freeze-badge.png' },
+    { id: 'legend', name: 'Legend Badge', levelCap: 43, obedience: 100, img: 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/items/legend-badge.png' }
 ];
 
 export const FINAL_CAPS = {
