@@ -453,15 +453,6 @@ function App() {
   // --- Rename Logic ---
   const [renameModal, setRenameModal] = useState<{ isOpen: boolean, pokemonId: string, currentName: string }>({ isOpen: false, pokemonId: '', currentName: '' });
 
-  const handleRename = (id: string) => {
-      const p = (state.pokemon || []).find(pk => pk.id === id);
-      if (!p) return;
-      
-      // Instead of the old modal, we'll use the Details modal
-      setSelectedPokemonForDetails(p);
-      setContextMenu(null);
-  };
-  
   const handleDetails = (id: string) => {
       const p = state.pokemon.find(pf => pf.id === id);
       if (p) {
@@ -579,7 +570,7 @@ function App() {
                 <div className="h-6 w-px bg-zinc-800 mx-1"></div>
 
                 <BadgeTracker 
-                    badges={state.badges} 
+                    badges={state.badges || 0} 
                     onUpdateBadges={updateBadges} 
                     onOpenTeamAnalysis={() => setShowTeamAnalysis(true)}
                     onOpenCatchCalc={() => alert("Catch Rate Calculator: Coming Soon!")}
