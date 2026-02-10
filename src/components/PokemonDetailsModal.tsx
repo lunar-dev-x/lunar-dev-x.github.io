@@ -12,7 +12,7 @@ interface Props {
   onClose: () => void;
 }
 
-const PokemonDetailsModal: React.FC<Props> = ({ isOpen, pokemon, onUpdate, onClose }) => {
+const PokemonDetailsModal: React.FC<Props> = ({ pokemon, onUpdate, onClose }) => {
   const [nickname, setNickname] = useState(pokemon.nickname || '');
   const [item, setItem] = useState(pokemon.item || '');
   const [moves, setMoves] = useState<string[]>(pokemon.moves || ['', '', '', '']);
@@ -30,7 +30,6 @@ const PokemonDetailsModal: React.FC<Props> = ({ isOpen, pokemon, onUpdate, onClo
                   // Auto-save types to skip fetch next time
                   onUpdate(pokemon.id, { types: details.types });
               }
-              setLoading(false);
           } else {
               // Just fetch moves list for autocomplete
               const details = await getPokemonDetails(pokemon.species);

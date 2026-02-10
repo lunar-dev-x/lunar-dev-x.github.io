@@ -3,7 +3,6 @@ import React from 'react';
 import { Pokemon } from '../types';
 import { getTypeEffectiveness } from '../utils/gameData';
 import { X, ShieldAlert } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
 
 interface Props {
   isOpen: boolean;
