@@ -9,7 +9,7 @@ interface Props {
   autoFocus?: boolean;
 }
 
-const AutocompleteInput: React.FC<Props> = ({ value, onChange, options, placeholder, className, autoFocus }) => {
+const AutocompleteInput: React.FC<Props> = ({ value, onChange, options = [], placeholder, className, autoFocus }) => {
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [filteredOptions, setFilteredOptions] = useState<string[]>([]);
   const wrapperRef = useRef<HTMLDivElement>(null);
@@ -19,7 +19,7 @@ const AutocompleteInput: React.FC<Props> = ({ value, onChange, options, placehol
     if (value) {
       const lower = value.toLowerCase();
       // Case insensitive check
-      const matches = options.filter(opt => opt.toLowerCase().includes(lower));
+      const matches = (options || []).filter(opt => (typeof opt === 'string') && opt.toLowerCase().includes(lower));
       // Sort matches: startsWith first, then others
       matches.sort((a, b) => {
         const aLower = a.toLowerCase();

@@ -12,7 +12,7 @@ import RouteTracker from './components/RouteTracker';
 import PokemonCard from './components/PokemonCard';
 import SyncManager from './components/SyncManager';
 import { useMultiplayer } from './hooks/useMultiplayer'; // Hook for Firebase sync
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 
 import PokemonDetailsModal from './components/PokemonDetailsModal';
 import BadgeTracker from './components/BadgeTracker';
@@ -538,7 +538,7 @@ function App() {
   const getFailedCount = (player: Player) => {
       return (state.routes || []).filter(r => 
           r.status === 'failed' && 
-          (!r.failedBy || r.failedBy.length === 0 || r.failedBy.includes(player))
+          (r.failedBy && r.failedBy.includes(player))
       ).length;
   };
 
@@ -555,20 +555,20 @@ function App() {
   };
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-100 font-sans selection:bg-emerald-500/30">
+    <div className="min-h-screen bg-zinc-950 text-zinc-100 font-sans selection:bg-zinc-700/30">
       <motion.header 
         initial={{ y: -20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ duration: 0.5 }}
-        className="sticky top-0 z-40 w-full border-b border-zinc-800 bg-zinc-950/80 backdrop-blur supports-[backdrop-filter]:bg-zinc-950/60"
+        className="sticky top-0 z-40 w-full border-b border-zinc-900/50 bg-zinc-950/80 backdrop-blur-md supports-[backdrop-filter]:bg-zinc-950/60"
       >
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
           <div className="flex items-center gap-6">
               <div className="flex flex-col">
-                <h1 className="text-xl font-bold tracking-tight bg-gradient-to-r from-emerald-400 to-cyan-400 bg-clip-text text-transparent">
+                <h1 className="text-xl font-bold tracking-tight bg-gradient-to-br from-white to-zinc-500 bg-clip-text text-transparent">
                   SoulLinker
                 </h1>
-                <span className="text-[10px] text-zinc-500 font-mono tracking-wider uppercase">Unova Link v2.0</span>
+                <span className="text-[10px] text-zinc-600 font-mono tracking-wider uppercase font-semibold">Unova Link v2.0</span>
               </div>
               
               <BadgeTracker 
@@ -595,14 +595,14 @@ function App() {
              <div className="h-6 w-px bg-zinc-800 mx-1"></div>
 
              <div className="flex items-center gap-1">
-                <button onClick={resetData} className="p-2 text-zinc-400 hover:text-red-400 hover:bg-zinc-900 rounded-md transition" title="Reset All Progress">
+                <button onClick={resetData} className="p-2 text-zinc-500 hover:text-zinc-100 hover:bg-zinc-900 rounded-md transition" title="Reset All Progress">
                   <RotateCcw size={16} />
                 </button>
-                <button onClick={exportData} className="p-2 text-zinc-400 hover:text-blue-400 hover:bg-zinc-900 rounded-md transition" title="Save Backup">
+                <button onClick={exportData} className="p-2 text-zinc-500 hover:text-zinc-100 hover:bg-zinc-900 rounded-md transition" title="Save Backup">
                   <Save size={16} />
                 </button>
                 <input type="file" id="import-file" className="hidden" onChange={handleImport} accept=".json" />
-                <button onClick={triggerImport} className="p-2 text-zinc-400 hover:text-emerald-400 hover:bg-zinc-900 rounded-md transition" title="Load Backup">
+                <button onClick={triggerImport} className="p-2 text-zinc-500 hover:text-zinc-100 hover:bg-zinc-900 rounded-md transition" title="Load Backup">
                   <Upload size={16} />
                 </button>
               </div>
@@ -637,7 +637,10 @@ function App() {
                 isOpen={showCombatSim}
                 onClose={() => setShowCombatSim(false)}
                 allPokemon={state.pokemon}
+                onUpdatePokemon={updatePokemon}
+                playerNames={state.playerNames}
             />
+            <AnimatePresence>
             {selectedPokemonForDetails && (
                 <PokemonDetailsModal
                     isOpen={!!selectedPokemonForDetails}
@@ -646,6 +649,7 @@ function App() {
                     onUpdate={updatePokemonDetails}
                 />
             )}
+            </AnimatePresence>
             {/* Player 1 Area */}
             <div className="bg-zinc-900/40 rounded-xl border border-zinc-800 overflow-hidden">
               <div className="bg-zinc-900/60 border-b border-zinc-800 text-sm font-medium text-zinc-400 px-4 py-3 flex items-center justify-between">
@@ -807,9 +811,23 @@ function App() {
           )}
 
           {/* Rename Modal */}
+          <AnimatePresence>
           {renameModal.isOpen && (
-             <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-                 <div className="bg-zinc-900 border border-zinc-700 rounded-xl p-6 max-w-sm w-full shadow-2xl">
+             <motion.div 
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                onClick={() => setRenameModal(prev => ({ ...prev, isOpen: false }))}
+                className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
+             >
+                 <motion.div 
+                     initial={{ scale: 0.95, opacity: 0, y: 20 }}
+                     animate={{ scale: 1, opacity: 1, y: 0 }}
+                     exit={{ scale: 0.95, opacity: 0, y: 20 }}
+                     onClick={e => e.stopPropagation()}
+                     className="bg-zinc-900 border border-zinc-700 rounded-xl p-6 max-w-sm w-full shadow-2xl"
+                 >
                      <h3 className="text-lg font-bold text-white mb-4">Rename Pokemon</h3>
                      <input 
                          className="w-full bg-zinc-950 border border-zinc-700 rounded-lg px-4 py-2 text-zinc-200 outline-none focus:ring-1 focus:ring-emerald-500 mb-4"
@@ -832,14 +850,29 @@ function App() {
                              Save
                          </button>
                      </div>
-                 </div>
-             </div>
+                 </motion.div>
+             </motion.div>
           )}
+          </AnimatePresence>
 
           {/* Evolution Modal */}
+          <AnimatePresence>
           {evoModal.isOpen && (
-             <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-                 <div className="bg-zinc-900 border border-zinc-700 rounded-xl p-6 max-w-sm w-full shadow-2xl">
+             <motion.div 
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                onClick={() => setEvoModal({ isOpen: false, pokemonId: '', options: [] })}
+                className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
+             >
+                 <motion.div 
+                     initial={{ scale: 0.95, opacity: 0, y: 20 }}
+                     animate={{ scale: 1, opacity: 1, y: 0 }}
+                     exit={{ scale: 0.95, opacity: 0, y: 20 }}
+                     onClick={e => e.stopPropagation()}
+                     className="bg-zinc-900 border border-zinc-700 rounded-xl p-6 max-w-sm w-full shadow-2xl"
+                 >
                      <h3 className="text-lg font-bold text-white mb-4">Choose Evolution</h3>
                      <div className="grid grid-cols-2 gap-3">
                          {evoModal.options.map(opt => (
@@ -865,9 +898,10 @@ function App() {
                      >
                          Cancel
                      </button>
-                 </div>
-             </div>
+                 </motion.div>
+             </motion.div>
           )}
+          </AnimatePresence>
         </DndContext>
       </motion.main>
     </div>

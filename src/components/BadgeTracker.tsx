@@ -16,7 +16,7 @@ const BadgeTracker: React.FC<Props> = ({ badges = 0, onUpdateBadges, onOpenTeamA
   const currentObedience = badges === 0 ? 10 : BADGES[badges - 1].obedience;
   
   return (
-    <div className="flex items-center gap-4 bg-zinc-900/50 backdrop-blur-md rounded-full px-4 py-2 border border-zinc-800 shadow-xl">
+    <div className="flex items-center gap-4 bg-zinc-900/50 backdrop-blur-md rounded-full px-4 py-2 border border-zinc-900 shadow-xl">
         {/* Badge Row */}
         <div className="flex gap-1.5">
             {BADGES.map((b, i) => {
@@ -25,7 +25,7 @@ const BadgeTracker: React.FC<Props> = ({ badges = 0, onUpdateBadges, onOpenTeamA
                     <button
                         key={b.id}
                         onClick={() => onUpdateBadges(isUnlocked ? i : i + 1)}
-                        className={`relative w-8 h-8 rounded-full border-2 transition-all duration-300 group overflow-hidden ${isUnlocked ? 'border-amber-400 bg-zinc-900 grayscale-0 scale-100 z-10' : 'border-zinc-700 bg-zinc-950 grayscale opacity-40 scale-90 z-0 hover:scale-100 hover:opacity-100'}`}
+                        className={`relative w-8 h-8 rounded-full border-2 transition-all duration-300 group overflow-hidden ${isUnlocked ? 'border-zinc-200 bg-zinc-900 grayscale-0 scale-100 z-10 shadow-lg shadow-zinc-900/50' : 'border-zinc-800 bg-zinc-950 grayscale opacity-40 scale-90 z-0 hover:scale-100 hover:opacity-100'}`}
                         title={b.name}
                     >
                         <img src={b.img} alt={b.name} className="w-full h-full object-cover" />
@@ -54,19 +54,19 @@ const BadgeTracker: React.FC<Props> = ({ badges = 0, onUpdateBadges, onOpenTeamA
         <div className="flex gap-2">
             <button 
                 onClick={onOpenTeamAnalysis}
-                className="p-2 rounded-full bg-indigo-500/10 text-indigo-400 hover:bg-indigo-500/20 border border-indigo-500/30 transition shadow-lg shadow-indigo-500/10" title="Team Analysis"
+                className="p-2 rounded-full bg-zinc-900 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 border border-zinc-800 hover:border-zinc-600 transition" title="Team Analysis"
             >
                 <Shield size={16} />
             </button>
             <button 
                 onClick={onOpenCatchCalc}
-                className="p-2 rounded-full bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 border border-emerald-500/30 transition" title="Catch Calculator"
+                className="p-2 rounded-full bg-zinc-900 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 border border-zinc-800 hover:border-zinc-600 transition" title="Catch Calculator"
             >
                 <Target size={16} />
             </button>
             <button 
                 onClick={onOpenCombatSim}
-                className="p-2 rounded-full bg-red-500/10 text-red-400 hover:bg-red-500/20 border border-red-500/30 transition" title="Combat Simulator"
+                className="p-2 rounded-full bg-zinc-900 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 border border-zinc-800 hover:border-zinc-600 transition" title="Combat Simulator"
             >
                 <Sword size={16} />
             </button>

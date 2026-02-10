@@ -41,8 +41,8 @@ const SyncManager: React.FC<SyncManagerProps> = ({ sessionId, isConnected, isHos
         onClick={() => setIsOpen(!isOpen)} 
         className={`relative flex items-center gap-2 px-3 py-2 rounded-md border text-sm font-medium transition-all duration-300 ${
           isConnected 
-            ? 'bg-emerald-950/30 border-emerald-500/50 text-emerald-400 hover:bg-emerald-950/50 hover:shadow-lg hover:shadow-emerald-900/20' 
-            : 'bg-zinc-900 border-zinc-700 text-zinc-300 hover:border-zinc-500 hover:text-white hover:shadow-lg hover:shadow-zinc-900/50'
+            ? 'bg-zinc-900 border-zinc-600 text-zinc-100 hover:bg-zinc-800' 
+            : 'bg-zinc-900 border-zinc-800 text-zinc-500 hover:border-zinc-600 hover:text-zinc-300'
         }`}
       >
         {isConnected ? <Users size={16} /> : <WifiOff size={16} />}
@@ -56,10 +56,10 @@ const SyncManager: React.FC<SyncManagerProps> = ({ sessionId, isConnected, isHos
       <AnimatePresence>
       {isOpen && (
         <>
-            {/* Backdrop for mobile */}
+            {/* Backdrop handles click outside */}
             <motion.div 
                initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-               className="fixed inset-0 z-40 bg-black/50 md:hidden" onClick={() => setIsOpen(false)} 
+               className="fixed inset-0 z-40 bg-black/50 md:bg-transparent" onClick={() => setIsOpen(false)} 
             />
             
             <motion.div 

@@ -4,6 +4,7 @@ import { X, Sword, Shield, Save } from 'lucide-react';
 import { getTypeEffectiveness } from '../utils/gameData';
 import { getPokemonDetails } from '../utils/pokeApi';
 import AutocompleteInput from './AutocompleteInput';
+import { motion } from 'framer-motion';
 
 interface Props {
   isOpen?: boolean;
@@ -57,8 +58,22 @@ const PokemonDetailsModal: React.FC<Props> = ({ pokemon, onUpdate, onClose }) =>
   const immunities = Object.entries(effectiveness).filter(([_, val]) => val === 0);
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4" onClick={onClose}>
-        <div className="bg-zinc-900 border border-zinc-700 rounded-xl max-w-2xl w-full shadow-2xl flex flex-col max-h-[90vh]" onClick={e => e.stopPropagation()}>
+    <motion.div 
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        transition={{ duration: 0.2 }}
+        className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4" 
+        onClick={onClose}
+    >
+        <motion.div 
+            initial={{ scale: 0.95, opacity: 0, y: 20 }}
+            animate={{ scale: 1, opacity: 1, y: 0 }}
+            exit={{ scale: 0.95, opacity: 0, y: 20 }}
+            transition={{ duration: 0.2 }}
+            className="bg-zinc-900 border border-zinc-700 rounded-xl max-w-2xl w-full shadow-2xl flex flex-col max-h-[90vh]" 
+            onClick={e => e.stopPropagation()}
+        >
             {/* Header */}
             <div className="p-6 border-b border-zinc-700 flex items-start gap-4">
                <div className="w-20 h-20 bg-zinc-950 rounded-full border-2 border-zinc-700 flex items-center justify-center shrink-0 relative">
@@ -193,8 +208,8 @@ const PokemonDetailsModal: React.FC<Props> = ({ pokemon, onUpdate, onClose }) =>
                     <Save size={18} /> Save Details
                 </button>
             </div>
-        </div>
-    </div>
+        </motion.div>
+    </motion.div>
   );
 };
 

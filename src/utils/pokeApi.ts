@@ -149,7 +149,13 @@ export const getMoveDetails = async (moveName: string) => {
             power: data.power,
             accuracy: data.accuracy,
             damage_class: data.damage_class.name, // physical, special, status
-            priority: data.priority
+            priority: data.priority,
+            meta: data.meta ? {
+                ailment: data.meta.ailment.name,
+                ailment_chance: data.meta.ailment_chance,
+                flinch_chance: data.meta.flinch_chance,
+                stat_chance: data.meta.stat_chance,
+            } : undefined
         };
     } catch (e) {
         console.error("Move fetch failed", e);

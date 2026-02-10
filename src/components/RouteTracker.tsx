@@ -217,7 +217,7 @@ const RouteTracker: React.FC<Props> = ({ routes, onUpdateRoute, onCatch, onAddRo
                     <SortableRow key={route.id} route={route} isEditing={isEditing}>
                     <td className="py-3 px-4 font-medium text-sm text-zinc-300">
                         {route.name}
-                        {route.isCustom && <span className="ml-2 text-[10px] bg-indigo-500/20 text-indigo-300 px-1.5 py-0.5 rounded border border-indigo-500/30">Custom</span>}
+                        {route.isCustom && <span className="ml-2 text-[10px] bg-zinc-800 text-zinc-400 px-1.5 py-0.5 rounded border border-zinc-700">Custom</span>}
                     </td>
                     
                     {/* P1 Input */}

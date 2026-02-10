@@ -6,6 +6,7 @@ import { TRAINER_PRESETS } from '../utils/trainerPresets';
 import { Sword, X, Shield, TrendingUp, Crosshair } from 'lucide-react';
 import { Pokemon } from '../types';
 import AutocompleteInput from './AutocompleteInput';
+import { motion, AnimatePresence } from 'framer-motion';
 
 // --- Interfaces ---
 
@@ -14,6 +15,7 @@ interface Props {
   onClose: () => void;
   allPokemon: Pokemon[];
   playerNames?: { player1: string; player2: string; player3: string }; // Added names
+  onUpdatePokemon: (id: string, updates: Partial<Pokemon>) => void;
 }
 
 interface StatProfile {
@@ -42,6 +44,12 @@ interface ExtendedMove {
     type: string;
     damage_class: string;
     priority?: number;
+    meta?: {
+        ailment: string;
+        ailment_chance: number;
+        flinch_chance: number;
+        stat_chance: number;
+    };
 }
 
 interface BattlePokemon extends Pokemon {
@@ -79,6 +87,23 @@ interface EnemyMon {
     currentHp: number;
     maxHp: number;
     condition: string; 
+}
+
+interface AnalysisResult {
+    score: number;
+    speedResult: 'faster' | 'slower' | 'tie';
+    mySpeed: number;
+    enSpeed: number;
+    maxIncomingPct: number;
+    worstEnemyMoveStr: string;
+    enemyBestMove: ExtendedMove | null;
+    maxOutgoingPct: number;
+    bestMoveStr: string;
+    myBestMove: ExtendedMove | null;
+    turnsToWin: number;
+    turnsToDie: number;
+    safetyRating: 'Safe' | 'Trade' | 'Risky' | 'Dead';
+    isControlRisk?: boolean;
 }
 
 // --- Constants ---
@@ -164,7 +189,7 @@ const calculateDamage = (
     return { min: minDmg, max: maxDmg, typeEff };
 };
 
-const CombatSimulator: React.FC<Props> = ({ isOpen, onClose, allPokemon, playerNames }) => {
+const CombatSimulator: React.FC<Props> = ({ isOpen, onClose, allPokemon, playerNames, onUpdatePokemon }) => {
   // --- Global State ---
   const [activeOwner, setActiveOwner] = useState<'player1' | 'player2' | 'player3'>('player1');
   const [activeBox, setActiveBox] = useState<'party' | 'box'>('party'); 
@@ -280,6 +305,8 @@ const CombatSimulator: React.FC<Props> = ({ isOpen, onClose, allPokemon, playerN
   };
   
   const handleLevelChange = (id: string, val: number) => {
+      onUpdatePokemon(id, { level: val });
+
       setBattleParty(prev => prev.map(p => {
           if (p.id !== id) return p;
           // Recalculate based on base stats
@@ -295,6 +322,35 @@ const CombatSimulator: React.FC<Props> = ({ isOpen, onClose, allPokemon, playerN
       }));
   };
 
+  const [selectedMoveSlot, setSelectedMoveSlot] = useState<number | null>(null);
+  const [lockedMoves, setLockedMoves] = useState<boolean[]>([false, false, false, false]);
+
+  const updateEnemySpecies = (val: string) => {
+      setEnemySpecies(val);
+      // Reset moves when species changes unless locked? No, new species = new moves.
+      setEnemyMoves(['', '', '', '']);
+      setLockedMoves([false, false, false, false]);
+      setPossibleEnemyMoves([]);
+  };
+
+  const handleFillMoves = () => {
+      const newMoves = [...enemyMoves];
+      // Get moves currently used to avoid duplicates (optional, but good)
+      const used = new Set(newMoves.filter(m => m));
+      
+      const availableFillers = possibleEnemyMoves.filter(m => !used.has(m.name));
+      let fillIndex = 0;
+      
+      newMoves.forEach((move, i) => {
+          // Fill if unlocked and empty
+          if (!lockedMoves[i] && !move && fillIndex < availableFillers.length) {
+              newMoves[i] = availableFillers[fillIndex].name;
+              fillIndex++;
+          }
+      });
+      setEnemyMoves(newMoves);
+  };
+
   const loadPreset = (preset: typeof TRAINER_PRESETS[0]) => {
       const p1 = preset.pokemon[0];
       setEnemySpecies(p1.species);
@@ -302,6 +358,7 @@ const CombatSimulator: React.FC<Props> = ({ isOpen, onClose, allPokemon, playerN
       const moves = p1.moves || ['', '', '', ''];
       while (moves.length < 4) moves.push('');
       setEnemyMoves(moves);
+      setLockedMoves([true, true, true, true]); // Lock preset moves by default
   };
 
   const loadEnemy = async () => {
@@ -390,7 +447,7 @@ const CombatSimulator: React.FC<Props> = ({ isOpen, onClose, allPokemon, playerN
 
   // --- SOLVER LOGIC ---
   
-  const analyzeMatchup = (myMon: BattlePokemon, enemy: EnemyMon) => {
+  const analyzeMatchup = (myMon: BattlePokemon, enemy: EnemyMon): AnalysisResult | null => {
       if (!myMon.realStats || !enemy.realStats) return null;
 
       // 1. Speed Check
@@ -405,10 +462,22 @@ const CombatSimulator: React.FC<Props> = ({ isOpen, onClose, allPokemon, playerN
       let maxIncomingPct = 0;
       let worstEnemyMoveStr = 'None';
       let enemyBestMove: ExtendedMove | null = null;
-      let threateningMoves: { name: string, pct: number }[] = [];
+      let threateningMoves: { name: string, pct: number, isStatus?: boolean }[] = [];
 
       enemy.moveDetails.forEach(m => {
-          if (m.damage_class === 'status') return;
+          if (m.damage_class === 'status') {
+              // Status Move Threat Analysis
+              if (m.meta && ['sleep', 'freeze'].includes(m.meta.ailment)) {
+                   // High threat status
+                   threateningMoves.push({ name: m.name, pct: 0, isStatus: true });
+                   // If they outspeed and sleep us, it's effectively a "kill" in terms of momentum
+                   if (speedResult === 'slower' && (m.accuracy || 100) > 60) {
+                       maxIncomingPct = Math.max(maxIncomingPct, 999); // Force danger rating
+                       worstEnemyMoveStr = `${m.name} (Control)`;
+                   }
+              }
+              return;
+          }
           const dmg = calculateDamage(enemy, myMon, m);
           // Use Max Roll for safety
           const pct = Math.min(100, Math.ceil((dmg.max / myMon.maxHp) * 100));
@@ -450,8 +519,8 @@ const CombatSimulator: React.FC<Props> = ({ isOpen, onClose, allPokemon, playerN
 
       // 4. Turn Analysis
       // turnsToDie: how many hits from enemy to kill me?
-      // If pct is 0, turns is infinity
-      const turnsToDie = maxIncomingPct > 0 ? Math.ceil(100 / maxIncomingPct) : 999;
+      // If pct is 0, turns is infinity. If pct > 100 (forced danger), turns is 1.
+      const turnsToDie = maxIncomingPct >= 100 ? 1 : (maxIncomingPct > 0 ? Math.ceil(100 / maxIncomingPct) : 999);
       
       // turnsToWin: how many hits from me to kill enemy?
       const turnsToWin = maxOutgoingPct > 0 ? Math.ceil(100 / maxOutgoingPct) : 999;
@@ -474,9 +543,12 @@ const CombatSimulator: React.FC<Props> = ({ isOpen, onClose, allPokemon, playerN
                } else if (damageTaken < 50) {
                    safetyRating = 'Safe';
                    score = 80 - damageTaken;
-               } else if (damageTaken < 100) {
+               } else if (damageTaken < 80) {
                    safetyRating = 'Trade';
                    score = 60 - damageTaken;
+               } else if (damageTaken < 100) {
+                   safetyRating = 'Risky';
+                   score = 40 - damageTaken;
                } else {
                    safetyRating = 'Dead'; 
                    score = -50;
@@ -495,9 +567,12 @@ const CombatSimulator: React.FC<Props> = ({ isOpen, onClose, allPokemon, playerN
                if (damageTaken < 50) {
                    safetyRating = 'Safe';
                    score = 70 - damageTaken;
-               } else if (damageTaken < 100) {
+               } else if (damageTaken < 80) {
                    safetyRating = 'Trade';
                    score = 50 - damageTaken;
+               } else if (damageTaken < 100) {
+                   safetyRating = 'Risky';
+                   score = 30 - damageTaken;
                } else {
                    safetyRating = 'Dead';
                    score = -50;
@@ -508,6 +583,12 @@ const CombatSimulator: React.FC<Props> = ({ isOpen, onClose, allPokemon, playerN
           }
       }
       
+      // Bonus penalty for "Control" danger
+      if (maxIncomingPct === 999) {
+           safetyRating = 'Dead'; 
+           score = -200;
+      }
+      
       if (maxOutgoingPct >= 100) score += 50; 
       else if (maxOutgoingPct >= 50) score += 20;
 
@@ -516,7 +597,8 @@ const CombatSimulator: React.FC<Props> = ({ isOpen, onClose, allPokemon, playerN
           speedResult,
           mySpeed,
           enSpeed,
-          maxIncomingPct,
+          // Revert 999 to 0 for display logic if needed or handle in UI
+          maxIncomingPct: maxIncomingPct === 999 ? 0 : maxIncomingPct,
           worstEnemyMoveStr,
           enemyBestMove,
           maxOutgoingPct,
@@ -525,9 +607,12 @@ const CombatSimulator: React.FC<Props> = ({ isOpen, onClose, allPokemon, playerN
           turnsToWin,
           turnsToDie,
           safetyRating,
+          isControlRisk: maxIncomingPct === 999
       };
   };
   
+  const [selectedMatchupId, setSelectedMatchupId] = useState<string | null>(null);
+
   const sortedLeads = useMemo(() => {
       if (!enemyData || battleParty.length === 0) return [];
       
@@ -541,20 +626,100 @@ const CombatSimulator: React.FC<Props> = ({ isOpen, onClose, allPokemon, playerN
   }, [battleParty, enemyData]);
 
 
-  if (!isOpen) return null;
+    // STRATEGY CALCULATOR for when things go wrong
+    const strategySuggestion = useMemo(() => {
+        if (!enemyData || sortedLeads.length === 0) return null;
+
+        // If even our best lead is risky/dead, we need a plan.
+        const bestLead = sortedLeads[0];
+        if (bestLead.analysis && (bestLead.analysis.safetyRating === 'Dead' || bestLead.analysis.safetyRating === 'Risky')) {
+            // Find Cleaners: Pokemon that can kill 
+            // Find Chippers: Pokemon that can deal dmg or status
+
+            const cleaners = sortedLeads.filter(l => l.analysis && l.analysis.turnsToWin <= 2); // Can kill quickly
+            const sacrifices = sortedLeads.filter(l => {
+                if (!l.analysis) return false;
+                // Good sacrifice: Outspeeds (guaranteed hit) OR can survive 1 hit
+                const guaranteedAction = l.analysis.speedResult === 'faster' || l.analysis.safetyRating !== 'Dead';
+                return guaranteedAction && (l.analysis.maxOutgoingPct > 10 || l.analysis.myBestMove?.damage_class === 'status');
+            });
+            
+            // Prefer sacrifices that are NOT best cleaners
+            const pureSacrifices = sacrifices.filter(s => !cleaners.find(c => c.id === s.id));
+
+            if (pureSacrifices.length > 0 && cleaners.length > 0) {
+                 const sac = pureSacrifices[0];
+                 const finish = cleaners[0];
+                 
+                 return {
+                     type: 'sac_swap',
+                     step1: `Lead ${sac.pokemon.nickname || sac.pokemon.species}`,
+                     step1Detail: `Use ${sac.analysis?.bestMoveStr} (~${sac.analysis?.maxOutgoingPct}%)`,
+                     step2: `Let it faint, then send ${finish.pokemon.nickname || finish.pokemon.species}`,
+                     step2Detail: `Clean up with ${finish.analysis?.bestMoveStr}`
+                 };
+            }
+        }
+        return null;
+    }, [sortedLeads, enemyData]);
+
+
+  // Set default selection when leads change
+  useEffect(() => {
+     if (sortedLeads.length > 0 && !selectedMatchupId) {
+         setSelectedMatchupId(sortedLeads[0].id);
+     }
+  }, [sortedLeads]);
+
+  const activeMatchup = sortedLeads.find(l => l.id === selectedMatchupId) || sortedLeads[0];
+  const isSafe = activeMatchup?.analysis?.safetyRating === 'Safe';
+  const isDead = activeMatchup?.analysis?.safetyRating === 'Dead';
+  
+  // Handlers for Enemy Mid-Battle Edits
+  const handleEnemyHpEdit = (val: number) => {
+      if(!enemyData) return;
+      setEnemyData({ ...enemyData, currentHp: val });
+  };
+
+  const handleEnemyStatusEdit = (status: string) => {
+     if(!enemyData) return;
+     setEnemyData({ ...enemyData, condition: enemyData.condition === status ? 'none' : status });
+  };
+
+  const handleEnemyStageEdit = (stat: keyof StatStages, val: number) => {
+      if(!enemyData) return;
+      setEnemyData({ ...enemyData, stages: { ...enemyData.stages, [stat]: val } });
+  };
+
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-      <div className="bg-zinc-900 border border-zinc-700 rounded-xl w-full max-w-7xl h-[90vh] flex flex-col shadow-2xl overflow-hidden text-zinc-100">
+    <AnimatePresence>
+        {isOpen && (
+            <motion.div 
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                onClick={onClose}
+                className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
+            >
+            <motion.div 
+                initial={{ scale: 0.95, opacity: 0, y: 20 }}
+                animate={{ scale: 1, opacity: 1, y: 0 }}
+                exit={{ scale: 0.95, opacity: 0, y: 20 }}
+                transition={{ duration: 0.3, type: "spring", bounce: 0.3 }}
+                onClick={e => e.stopPropagation()}
+                className="bg-zinc-900 border border-zinc-700 rounded-xl w-full max-w-7xl h-[90vh] flex flex-col shadow-2xl overflow-hidden text-zinc-100"
+            >
         
         {/* Header */}
         <div className="p-4 border-b border-zinc-800 flex justify-between items-center bg-zinc-950">
            <div className="flex items-center gap-3">
-               <Sword className="text-red-500" />
-               <h2 className="text-xl font-bold bg-gradient-to-r from-red-400 to-orange-400 bg-clip-text text-transparent">Battle Simulator v2</h2>
-               <div className="flex bg-zinc-800 rounded-lg p-1 text-xs ml-4">
-                   <button onClick={() => setActiveTab('setup')} className={`px-3 py-1 rounded ${activeTab === 'setup' ? 'bg-zinc-600 text-white' : 'text-zinc-400'}`}>Setup</button>
-                   <button onClick={() => setActiveTab('battle')} className={`px-3 py-1 rounded ${activeTab === 'battle' ? 'bg-red-600 text-white' : 'text-zinc-400'}`} disabled={!enemyData}>Battle</button>
+               <Sword className="text-zinc-400" />
+               <h2 className="text-xl font-bold text-zinc-100">Battle Simulator</h2>
+               <div className="flex bg-zinc-900 border border-zinc-800 rounded-lg p-1 text-xs ml-4">
+                   <button onClick={() => setActiveTab('setup')} className={`px-3 py-1 rounded transition-colors ${activeTab === 'setup' ? 'bg-zinc-800 text-zinc-100 shadow-sm' : 'text-zinc-500 hover:text-zinc-300'}`}>Setup</button>
+                   <button onClick={() => setActiveTab('battle')} className={`px-3 py-1 rounded transition-colors ${activeTab === 'battle' ? 'bg-zinc-100 text-zinc-900 font-bold' : 'text-zinc-500 hover:text-zinc-300'}`} disabled={!enemyData}>Battle</button>
                </div>
            </div>
            
@@ -565,7 +730,7 @@ const CombatSimulator: React.FC<Props> = ({ isOpen, onClose, allPokemon, playerN
                         <button 
                             key={b} 
                             onClick={() => setActiveBox(b)} 
-                            className={`px-3 py-1 text-xs font-bold uppercase rounded ${activeBox === b ? 'bg-indigo-600 text-white' : 'text-zinc-600 hover:text-zinc-400'}`}
+                            className={`px-3 py-1 text-xs font-bold uppercase rounded transition-colors ${activeBox === b ? 'bg-zinc-800 text-zinc-100' : 'text-zinc-600 hover:text-zinc-400'}`}
                         >
                             {b}
                         </button>
@@ -576,13 +741,13 @@ const CombatSimulator: React.FC<Props> = ({ isOpen, onClose, allPokemon, playerN
                     {(['player1', 'player2', 'player3'] as const).map(p => {
                         const name = playerNames?.[p as keyof typeof playerNames] || p.replace('player', 'P');
                         return (
-                            <button key={p} onClick={() => setActiveOwner(p)} className={`px-3 py-1 text-xs font-bold uppercase rounded ${activeOwner === p ? 'bg-zinc-700 text-white' : 'text-zinc-600'}`}>
+                            <button key={p} onClick={() => setActiveOwner(p)} className={`px-3 py-1 text-xs font-bold uppercase rounded transition-colors ${activeOwner === p ? 'bg-zinc-800 text-zinc-100' : 'text-zinc-600 hover:text-zinc-400'}`}>
                                 {name}
                             </button>
                         );
                     })}
                  </div>
-                 <button onClick={onClose} className="p-2 hover:bg-zinc-800 rounded-full transition"><X className="w-5 h-5 text-zinc-400" /></button>
+                 <button onClick={onClose} className="p-2 hover:bg-zinc-900 rounded-full transition text-zinc-500 hover:text-zinc-200"><X className="w-5 h-5" /></button>
            </div>
         </div>
 
@@ -709,7 +874,7 @@ const CombatSimulator: React.FC<Props> = ({ isOpen, onClose, allPokemon, playerN
                                         <AutocompleteInput 
                                             options={allSpeciesList} 
                                             value={enemySpecies} 
-                                            onChange={setEnemySpecies} 
+                                            onChange={updateEnemySpecies} 
                                             placeholder="e.g. Garchomp"
                                             className="w-full bg-black border border-zinc-700 p-2 rounded text-lg font-bold focus:border-red-500 focus:outline-none"
                                         />
@@ -726,21 +891,48 @@ const CombatSimulator: React.FC<Props> = ({ isOpen, onClose, allPokemon, playerN
                                 </div>
                                 
                                 <div>
-                                    <label className="text-xs text-zinc-500 mb-1 block uppercase font-bold">Enemy Moves (Optional)</label>
+                                    <label className="text-xs text-zinc-500 mb-1 block uppercase font-bold flex justify-between items-center">
+                                       <span>Enemy Moves</span>
+                                       {possibleEnemyMoves.length > 0 && (
+                                           <button onClick={handleFillMoves} className="text-[10px] text-blue-400 hover:text-blue-300 font-bold flex items-center gap-1 bg-blue-500/10 px-2 py-0.5 rounded border border-blue-500/30 transition">
+                                               <TrendingUp size={10} /> Smart Fill
+                                           </button>
+                                       )}
+                                    </label>
                                     <div className="grid grid-cols-2 gap-2">
                                         {[0,1,2,3].map(i => (
-                                            <AutocompleteInput 
-                                                key={i}
-                                                options={allMovesList.length > 0 ? allMovesList : possibleEnemyMoves.map((m: any) => m.name)}
-                                                value={enemyMoves[i] || ''}
-                                                onChange={(val) => {
-                                                    const n = [...enemyMoves];
-                                                    n[i] = val;
-                                                    setEnemyMoves(n);
-                                                }}
-                                                placeholder={`Move ${i+1}`}
-                                                className="bg-black border border-zinc-800 text-xs p-2 rounded w-full focus:border-red-500 focus:outline-none"
-                                            />
+                                            <div 
+                                                key={i} 
+                                                className={`relative flex items-center bg-black border rounded transition ${selectedMoveSlot === i ? 'border-red-500 ring-1 ring-red-500' : 'border-zinc-800'}`}
+                                                onClick={() => setSelectedMoveSlot(i)}
+                                            >
+                                                <div className="flex-1 min-w-0">
+                                                    <AutocompleteInput 
+                                                        options={allMovesList.length > 0 ? allMovesList : possibleEnemyMoves.map((m: any) => m.name)}
+                                                        value={enemyMoves[i] || ''}
+                                                        onChange={(val) => {
+                                                            if (lockedMoves[i]) return;
+                                                            const n = [...enemyMoves];
+                                                            n[i] = val;
+                                                            setEnemyMoves(n);
+                                                        }}
+                                                        placeholder={`Move ${i+1}`}
+                                                        className="bg-transparent border-none text-xs p-2 w-full focus:outline-none focus:ring-0"
+                                                    />
+                                                </div>
+                                                <button 
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        const n = [...lockedMoves];
+                                                        n[i] = !n[i];
+                                                        setLockedMoves(n);
+                                                    }}
+                                                    className={`p-2 hover:bg-zinc-900 rounded-r transition ${lockedMoves[i] ? 'text-red-400' : 'text-zinc-600'}`}
+                                                    title={lockedMoves[i] ? "Unlock Move" : "Lock Move"}
+                                                >
+                                                    {lockedMoves[i] ? <Shield size={12} className="fill-current" /> : <Shield size={12} />}
+                                                </button>
+                                            </div>
                                         ))}
                                     </div>
                                     
@@ -748,25 +940,38 @@ const CombatSimulator: React.FC<Props> = ({ isOpen, onClose, allPokemon, playerN
                                     {possibleEnemyMoves.length > 0 && (
                                        <div className="mt-3 animate-in fade-in slide-in-from-top-2">
                                            <label className="text-[10px] text-zinc-600 mb-1 block uppercase font-bold flex justify-between">
-                                               <span>Known Move Pool (Sorted by Power)</span>
-                                               <span className="text-zinc-700">Click to Add</span>
+                                               <span>Known Move Pool (Click to assign)</span>
                                            </label>
                                            <div className="flex flex-wrap gap-1.5 max-h-40 overflow-y-auto custom-scrollbar p-1.5 border border-zinc-800 rounded bg-black/40">
                                                {possibleEnemyMoves.map((m: any) => (
                                                    <button
                                                        key={m.name}
                                                        onClick={() => {
-                                                           const emptyIndex = enemyMoves.findIndex(x => !x);
-                                                           if (emptyIndex !== -1) {
+                                                           // If slot selected, use that
+                                                           if (selectedMoveSlot !== null) {
+                                                               if (lockedMoves[selectedMoveSlot]) return; // Or maybe show warning
                                                                const n = [...enemyMoves];
-                                                               n[emptyIndex] = m.name;
+                                                               n[selectedMoveSlot] = m.name;
                                                                setEnemyMoves(n);
+                                                               // Optional: Advance selection?
+                                                               // setSelectedMoveSlot((selectedMoveSlot + 1) % 4);
                                                            } else {
-                                                               // Cycle functionality: if full, replace the last one? Or maybe just flash red.
-                                                               // Let's replace the last slot for convenience
-                                                               const n = [...enemyMoves];
-                                                               n[3] = m.name;
-                                                               setEnemyMoves(n);
+                                                               // Fallback: Fill first empty
+                                                               const emptyIndex = enemyMoves.findIndex((x, idx) => !x && !lockedMoves[idx]);
+                                                               if (emptyIndex !== -1) {
+                                                                   const n = [...enemyMoves];
+                                                                   n[emptyIndex] = m.name;
+                                                                   setEnemyMoves(n);
+                                                               } else {
+                                                                   // Or replace last unlocked? logic from before
+                                                                   // Find last unlocked
+                                                                    const lastUnlocked = [3,2,1,0].find(idx => !lockedMoves[idx]);
+                                                                    if (lastUnlocked !== undefined) {
+                                                                        const n = [...enemyMoves];
+                                                                        n[lastUnlocked] = m.name;
+                                                                        setEnemyMoves(n); 
+                                                                    }
+                                                               }
                                                            }
                                                        }}
                                                        className="text-[10px] pl-1.5 pr-2 py-1 bg-zinc-900 border border-zinc-800 hover:border-zinc-500 hover:bg-zinc-800 rounded flex items-center gap-1.5 group transition w-auto"
@@ -801,32 +1006,44 @@ const CombatSimulator: React.FC<Props> = ({ isOpen, onClose, allPokemon, playerN
                 {activeTab === 'battle' && enemyData && (
                     <div className="flex flex-col h-full animate-in fade-in duration-300">
                         {/* Battle Header (Enemy Vis) */}
-                        <div className="h-40 shrink-0 bg-gradient-to-b from-zinc-900 to-zinc-950 flex items-center justify-center border-b border-zinc-800 relative">
+                        <div className="h-56 shrink-0 bg-gradient-to-b from-zinc-900 to-zinc-950 flex flex-col items-center justify-center border-b border-zinc-800 relative">
                              <div className="absolute inset-0 opacity-10" style={{background: `radial-gradient(circle at center, ${TYPE_COLORS[enemyData.types[0]]} 0%, transparent 70%)`}}></div>
                              
-                             <div className="flex items-center gap-8 relative z-10 scale-90 md:scale-100">
+                             <div className="flex items-center gap-8 relative z-10 scale-90 md:scale-100 mt-2">
                                   <div className="relative group cursor-help">
+                                      {/* Status Badge */}
+                                      {enemyData.condition !== 'none' && (
+                                          <div className="absolute -top-2 -right-2 z-20 px-1.5 py-0.5 rounded bg-purple-600 text-[10px] font-bold text-white shadow-lg border border-purple-400">
+                                              {enemyData.condition.slice(0,3).toUpperCase()}
+                                          </div>
+                                      )}
+
                                       <img 
                                         src={`https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${enemyData.id}.png`} 
-                                        className="w-28 h-28 pixelated drop-shadow-2xl" 
+                                        className="w-24 h-24 pixelated drop-shadow-2xl" 
                                         alt={enemyData.species} 
                                       />
-                                      {/* Tooltip Stats */}
-                                      <div className="absolute left-full ml-2 top-0 bg-black/90 text-[10px] p-2 rounded border border-zinc-700 w-32 hidden group-hover:block z-50">
-                                          <div className="font-bold text-red-400 mb-1">ENEMY STATS</div>
-                                          <div className="grid grid-cols-2 gap-x-2 text-zinc-300">
-                                            <span>Atk: {enemyData.realStats.attack}</span>
-                                            <span>Def: {enemyData.realStats.defense}</span>
-                                            <span>SpA: {enemyData.realStats['special-attack']}</span>
-                                            <span>SpD: {enemyData.realStats['special-defense']}</span>
-                                            <span className="text-yellow-400 col-span-2">Spe: {enemyData.realStats.speed}</span>
-                                          </div>
-                                      </div>
+                                      {/* Tooltip Stats - now clickable? maybe no need since we added editors below */}
                                   </div>
                                   
-                                  <div className="text-center">
+                                  <div className="text-center w-64">
                                       <h2 className="text-2xl font-black uppercase tracking-widest text-white drop-shadow-md">{enemyData.species}</h2>
-                                      <div className="flex justify-center gap-2 mt-1">
+                                      
+                                      {/* HP Slider */}
+                                      <div className="mt-2 text-xs font-bold text-zinc-400 flex items-center gap-2">
+                                          <span>HP</span>
+                                          <input 
+                                              type="range" 
+                                              min={0} 
+                                              max={enemyData.maxHp} 
+                                              value={enemyData.currentHp}
+                                              onChange={(e) => handleEnemyHpEdit(parseInt(e.target.value))}
+                                              className="flex-1 h-1.5 bg-zinc-700 rounded-full accent-green-500 cursor-pointer"
+                                          />
+                                          <span className="w-8 text-right text-white">{Math.ceil((enemyData.currentHp / enemyData.maxHp) * 100)}%</span>
+                                      </div>
+
+                                      <div className="flex justify-center gap-2 mt-2">
                                           {enemyData.types.map(t => (
                                               <span key={t} className="px-2 py-0.5 rounded text-[10px] font-bold uppercase text-black" style={{backgroundColor: TYPE_COLORS[t] || '#ccc'}}>{t}</span>
                                           ))}
@@ -834,64 +1051,148 @@ const CombatSimulator: React.FC<Props> = ({ isOpen, onClose, allPokemon, playerN
                                       </div>
                                   </div>
                              </div>
+
+                             {/* Mid-Battle Controls */}
+                             <div className="flex items-center gap-4 mt-2 z-10 bg-black/40 px-3 py-1.5 rounded-full border border-white/10">
+                                 {/* Status Toggles */}
+                                 <div className="flex gap-1">
+                                     {['paralysis', 'burn', 'sleep'].map(s => (
+                                         <button 
+                                            key={s} 
+                                            onClick={() => handleEnemyStatusEdit(s)}
+                                            className={`w-5 h-5 rounded-full flex items-center justify-center text-[8px] font-bold uppercase transition ${enemyData.condition === s ? 'bg-purple-500 text-white shadow-lg' : 'bg-zinc-800 text-zinc-500 hover:bg-zinc-700'}`}
+                                            title={s}
+                                         >
+                                             {s[0]}
+                                         </button>
+                                     ))}
+                                 </div>
+                                 <div className="w-px h-4 bg-zinc-700"></div>
+                                 {/* Stat Stages */}
+                                 <div className="flex gap-2">
+                                     {([{k: 'attack', l: 'Atk'}, {k: 'defense', l: 'Def'}, {k: 'special-attack', l: 'SpA'}, {k: 'special-defense', l: 'SpD'}, {k: 'speed', l: 'Spe'}] as const).map(os => (
+                                         <div key={os.k} className="flex flex-col items-center">
+                                             <div className="flex bg-zinc-900 rounded border border-zinc-700 overflow-hidden">
+                                                <button onClick={() => handleEnemyStageEdit(os.k, Math.max(-6, enemyData.stages[os.k] - 1))} className="w-4 h-4 flex items-center justify-center text-[10px] hover:bg-zinc-800">-</button>
+                                                <span className={`w-4 h-4 flex items-center justify-center text-[8px] font-bold ${enemyData.stages[os.k] > 0 ? 'text-green-400' : enemyData.stages[os.k] < 0 ? 'text-red-400' : 'text-zinc-500'}`}>
+                                                    {enemyData.stages[os.k]}
+                                                </span>
+                                                <button onClick={() => handleEnemyStageEdit(os.k, Math.min(6, enemyData.stages[os.k] + 1))} className="w-4 h-4 flex items-center justify-center text-[10px] hover:bg-zinc-800">+</button>
+                                             </div>
+                                             <span className="text-[6px] uppercase font-bold text-zinc-500 mt-0.5">{os.l}</span>
+                                         </div>
+                                     ))}
+                                 </div>
+                             </div>
                         </div>
 
                         {/* Analysis Content */}
                         <div className="flex-1 overflow-y-auto p-6 bg-zinc-950">
+
+                            {/* Strategy Prompt */}
+                            {strategySuggestion && (
+                                <div className="mb-6 p-4 bg-purple-900/20 border border-purple-500/30 rounded-xl animate-in fade-in slide-in-from-top-4">
+                                    <div className="flex items-center gap-2 mb-2 text-purple-300 font-bold text-xs uppercase tracking-wider">
+                                        <TrendingUp className="w-4 h-4" /> Tactical Suggestion (Survival Mode)
+                                    </div>
+                                    <div className="flex items-center gap-2 text-sm text-zinc-300">
+                                        <div className="flex flex-col items-center">
+                                            <span className="font-bold text-white shrink-0">{strategySuggestion.step1}</span>
+                                            <span className="text-[10px] text-zinc-500">{strategySuggestion.step1Detail}</span>
+                                        </div>
+                                        <div className="h-px bg-zinc-700 w-8 mx-2 relative">
+                                            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-1 h-1 bg-zinc-500 rounded-full"></div>
+                                        </div>
+                                        <div className="flex flex-col items-center">
+                                            <span className="font-bold text-white shrink-0">{strategySuggestion.step2}</span>
+                                            <span className="text-[10px] text-zinc-500">{strategySuggestion.step2Detail}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
                             
-                            {/* Best Lead Recommendation */}
-                            {sortedLeads.length > 0 && sortedLeads[0].analysis && (
-                                <div className="mb-6">
-                                    <h3 className="text-zinc-500 font-bold text-xs uppercase mb-3 flex items-center gap-2">
-                                        <Shield className="w-4 h-4 text-emerald-500" /> Recommended Lead
+                            {/* Selected Matchup Analysis (Mid-Battle) */}
+                            {activeMatchup && activeMatchup.analysis && (
+                                <div className="mb-6 animate-in slide-in-from-left-2 duration-300">
+                                    <h3 className="text-zinc-500 font-bold text-xs uppercase mb-3 flex items-center justify-between">
+                                        <div className="flex items-center gap-2"><Shield className="w-4 h-4 text-emerald-500" /> Active Scenario</div>
+                                        <span className="text-[10px] text-zinc-600 bg-zinc-900 px-2 py-0.5 rounded">Selected from Party below</span>
                                     </h3>
                                     
-                                    <div className="bg-gradient-to-r from-emerald-900/20 to-zinc-900 border border-emerald-500/30 p-4 rounded-xl flex items-center gap-4 shadow-lg shadow-emerald-900/10">
-                                        <div className="bg-emerald-500/10 p-3 rounded-full border border-emerald-500/20">
-                                            <img src={`https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${sortedLeads[0].pokemon.dexId}.png`} className="w-12 h-12 pixelated object-contain" />
+                                    <div className={`border p-4 rounded-xl flex items-center gap-4 shadow-lg transition-colors ${
+                                        isSafe ? 'bg-gradient-to-r from-emerald-900/20 to-zinc-900 border-emerald-500/30 shadow-emerald-900/10' :
+                                        isDead ? 'bg-gradient-to-r from-red-900/20 to-zinc-900 border-red-500/30' :
+                                        'bg-gradient-to-r from-yellow-900/20 to-zinc-900 border-yellow-500/30'
+                                    }`}>
+                                        <div className={`p-3 rounded-full border ${
+                                            isSafe ? 'bg-emerald-500/10 border-emerald-500/20' : 
+                                            isDead ? 'bg-red-500/10 border-red-500/20' : 'bg-yellow-500/10 border-yellow-500/20' 
+                                        }`}>
+                                            <img src={`https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${activeMatchup.pokemon.dexId}.png`} className="w-12 h-12 pixelated object-contain" />
                                         </div>
                                         <div className="flex-1">
-                                            <div className="text-xl font-bold text-white leading-none mb-1">{sortedLeads[0].pokemon.nickname || sortedLeads[0].pokemon.species}</div>
+                                            <div className="text-xl font-bold text-white leading-none mb-1 flex items-center justify-between">
+                                                <span>{activeMatchup.pokemon.nickname || activeMatchup.pokemon.species}</span>
+                                                <div className="flex gap-1">
+                                                     <span className="text-[10px] bg-zinc-950 px-1.5 py-0.5 rounded text-zinc-400 font-mono">
+                                                         {activeMatchup.pokemon.currentHp}/{activeMatchup.pokemon.maxHp} HP
+                                                     </span>
+                                                </div>
+                                            </div>
                                             
                                             <div className="flex flex-col gap-1 mt-2">
                                                  <div className="flex items-center gap-2 text-xs">
                                                       <span className={`font-bold px-1.5 py-0.5 rounded ${
-                                                          sortedLeads[0].analysis.safetyRating === 'Safe' ? 'bg-emerald-500/20 text-emerald-400' :
-                                                          sortedLeads[0].analysis.safetyRating === 'Trade' ? 'bg-yellow-500/20 text-yellow-400' :
+                                                          isSafe ? 'bg-emerald-500/20 text-emerald-400' :
+                                                          activeMatchup.analysis.safetyRating === 'Trade' ? 'bg-yellow-500/20 text-yellow-400' :
                                                           'bg-red-500/20 text-red-400'
-                                                      }`}>{sortedLeads[0].analysis.safetyRating.toUpperCase()} MATCHUP</span>
+                                                      }`}>{activeMatchup.analysis.safetyRating.toUpperCase()} MATCHUP</span>
                                                       
                                                       <span className="text-zinc-500">
-                                                         {sortedLeads[0].analysis.speedResult === 'faster' ? 'Outspeeds' : sortedLeads[0].analysis.speedResult === 'tie' ? 'Speed Tie' : 'Outspeeded'}
+                                                         {activeMatchup.analysis.speedResult === 'faster' ? 'Outspeeds' : activeMatchup.analysis.speedResult === 'tie' ? 'Speed Tie' : 'Outspeeded'}
                                                       </span>
                                                  </div>
 
                                                  <div className="text-xs text-zinc-400">
-                                                     <span className="text-zinc-500">Plan:</span> Use <span className="font-bold text-zinc-200">{sortedLeads[0].analysis.bestMoveStr}</span> ({sortedLeads[0].analysis.maxOutgoingPct}% min)
+                                                     <span className="text-zinc-500">Plan:</span> Use <span className="font-bold text-zinc-200">{activeMatchup.analysis.bestMoveStr}</span> ({activeMatchup.analysis.maxOutgoingPct}% min)
                                                      <span className="mx-2">|</span>
-                                                     <span className="text-zinc-500">Risk:</span> Takes {sortedLeads[0].analysis.maxIncomingPct}% max from {sortedLeads[0].analysis.worstEnemyMoveStr}
+                                                     <span className="text-zinc-500">Risk:</span> Takes {activeMatchup.analysis.isControlRisk ? 'Control Effect' : activeMatchup.analysis.maxIncomingPct + '% max'} from {activeMatchup.analysis.worstEnemyMoveStr}
                                                  </div>
                                             </div>
                                         </div>
-                                        <div className="text-right px-4 border-l border-emerald-500/20 flex flex-col items-end justify-center min-w-[80px]">
-                                            <div className="text-2xl font-black text-emerald-400">
-                                                {sortedLeads[0].analysis.turnsToWin} <span className="text-xs font-normal text-emerald-600">Turn KO</span>
+                                        <div className={`text-right px-4 border-l flex flex-col items-end justify-center min-w-[80px] ${isSafe ? 'border-emerald-500/20' : isDead ? 'border-red-500/20' : 'border-yellow-500/20'}`}>
+                                            <div className={`text-2xl font-black ${isSafe ? 'text-emerald-400' : isDead ? 'text-red-400' : 'text-yellow-400'}`}>
+                                                {isDead && (activeMatchup.analysis.turnsToDie < activeMatchup.analysis.turnsToWin || activeMatchup.analysis.isControlRisk) ? (
+                                                    <span className="text-red-500">LOSS</span>
+                                                ) : (
+                                                    <>{activeMatchup.analysis.turnsToWin} <span className="text-xs font-normal text-zinc-500">Turn KO</span></>
+                                                )}
                                             </div>
+                                            {isDead && (
+                                                <span className="text-[10px] text-red-500 font-bold uppercase">{activeMatchup.analysis.isControlRisk ? 'CC Threat' : 'Lethal Risk'}</span>
+                                            )}
                                         </div>
                                     </div>
                                 </div>
                             )}
 
-                            {/* Rest of Party */}
-                            <h3 className="text-zinc-500 font-bold text-xs uppercase mb-3">Party Matchups</h3>
+                            {/* Party Grid */}
+                            <h3 className="text-zinc-500 font-bold text-xs uppercase mb-3">Party Switch-Ins</h3>
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                                {sortedLeads.slice(1).map(item => {
+                                {sortedLeads.map(item => {
                                     if (!item.analysis) return null;
-                                    const isSafe = item.analysis.safetyRating === 'Safe';
-                                    const isDead = item.analysis.safetyRating === 'Dead';
+                                    const safe = item.analysis.safetyRating === 'Safe';
+                                    const dead = item.analysis.safetyRating === 'Dead';
+                                    const isSelected = selectedMatchupId === item.id;
                                     
                                     return (
-                                    <div key={item.id} className={`bg-zinc-900 border p-3 rounded-lg flex items-center gap-3 transition hover:bg-zinc-800 ${isSafe ? 'border-zinc-800' : isDead ? 'border-red-900/30 bg-red-900/5' : 'border-yellow-900/30 bg-yellow-900/5'}`}>
+                                    <button 
+                                        key={item.id} 
+                                        onClick={() => setSelectedMatchupId(item.id)}
+                                        className={`bg-zinc-900 border p-3 rounded-lg flex items-center gap-3 transition hover:bg-zinc-800 text-left relative ${
+                                            isSelected ? 'ring-2 ring-blue-500 bg-zinc-800' : ''
+                                        } ${safe ? 'border-zinc-800' : dead ? 'border-red-900/30 bg-red-900/5' : 'border-yellow-900/30 bg-yellow-900/5'}`}
+                                    >
                                         <img src={`https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${item.pokemon.dexId}.png`} className="w-10 h-10 pixelated opacity-80" />
                                         <div className="flex-1 min-w-0">
                                             <div className="text-sm font-bold truncate text-zinc-300">{item.pokemon.nickname || item.pokemon.species}</div>
@@ -900,15 +1201,15 @@ const CombatSimulator: React.FC<Props> = ({ isOpen, onClose, allPokemon, playerN
                                                      <span>Deal: {item.analysis.maxOutgoingPct}%</span>
                                                      <span>Take: {item.analysis.maxIncomingPct}%</span>
                                                  </div>
-                                                 <div className={`text-[10px] font-bold ${isDead ? 'text-red-500' : 'text-zinc-400'}`}>
-                                                     {isDead ? `Dies in ${item.analysis.turnsToDie} turn(s)` : `Wins in ${item.analysis.turnsToWin} turn(s)`}
+                                                 <div className={`text-[10px] font-bold ${dead ? 'text-red-500' : 'text-zinc-400'}`}>
+                                                     {dead ? `Dies in ${item.analysis.turnsToDie} turn(s)` : `Wins in ${item.analysis.turnsToWin} turn(s)`}
                                                  </div>
                                             </div>
                                         </div>
-                                        <div className={`text-lg font-bold ${isSafe ? 'text-zinc-600' : 'text-red-500'}`}>
+                                        <div className={`text-lg font-bold ${safe ? 'text-zinc-600' : 'text-red-500'}`}>
                                             {item.analysis.safetyRating === 'Safe' ? 'OK' : '!!'}
                                         </div>
-                                    </div>
+                                    </button>
                                 )})}
                             </div>
                             
@@ -929,8 +1230,10 @@ const CombatSimulator: React.FC<Props> = ({ isOpen, onClose, allPokemon, playerN
                 )}
             </div>
         </div>
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
+    )}
+    </AnimatePresence>
   );
 };
 

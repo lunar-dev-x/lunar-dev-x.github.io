@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { getPokemonDetails, getAllPokemonNames } from '../utils/pokeApi';
 import { Target, X } from 'lucide-react';
 import AutocompleteInput from './AutocompleteInput';
+import { motion, AnimatePresence } from 'framer-motion';
 
 interface Props {
   isOpen: boolean;
@@ -146,14 +147,27 @@ const CatchCalculator: React.FC<Props> = ({ isOpen, onClose, initialSpecies = ''
       
   }, [catchRate, ball, hpPercent, status, isDarkCave, isFishingSurfing, turnCount, isWaterBug, dexCaught, level]);
 
-  if (!isOpen) return null;
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-      <div className="bg-zinc-900 border border-zinc-700 rounded-xl p-6 max-w-lg w-full shadow-2xl overflow-y-auto max-h-[90vh]">
+    <AnimatePresence>
+      {isOpen && (
+        <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            onClick={onClose}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
+        >
+          <motion.div 
+             initial={{ scale: 0.95, opacity: 0, y: 20 }}
+             animate={{ scale: 1, opacity: 1, y: 0 }}
+             exit={{ scale: 0.95, opacity: 0, y: 20 }}
+             onClick={e => e.stopPropagation()}
+             className="bg-zinc-900 border border-zinc-700 rounded-xl p-6 max-w-lg w-full shadow-2xl overflow-y-auto max-h-[90vh]"
+          >
         <div className="flex justify-between items-center mb-6">
-            <h3 className="text-xl font-bold text-white flex items-center gap-2">
-                <Target className="text-emerald-400" /> Catch Calculator
+            <h3 className="text-xl font-bold text-zinc-100 flex items-center gap-2">
+                <Target className="text-zinc-100" /> Catch Calculator
             </h3>
             <button onClick={onClose}><X className="text-zinc-500 hover:text-white" /></button>
         </div>
@@ -238,8 +252,10 @@ const CatchCalculator: React.FC<Props> = ({ isOpen, onClose, initialSpecies = ''
             )}
         </div>
 
-      </div>
-    </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 };
 export default CatchCalculator;
