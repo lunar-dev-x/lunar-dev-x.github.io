@@ -1,7 +1,6 @@
 import React from 'react';
-import { BADGES, FINAL_CAPS, getTypeEffectiveness } from '../utils/gameData';
-import { Shield, Target } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { BADGES, FINAL_CAPS } from '../utils/gameData';
+import { Shield, Target, Sword } from 'lucide-react';
 
 interface Props {
   badges: number;
@@ -64,6 +63,12 @@ const BadgeTracker: React.FC<Props> = ({ badges = 0, onUpdateBadges, onOpenTeamA
                 className="p-2 rounded-full bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 border border-emerald-500/30 transition" title="Catch Calculator"
             >
                 <Target size={16} />
+            </button>
+            <button 
+                onClick={onOpenCombatSim}
+                className="p-2 rounded-full bg-red-500/10 text-red-400 hover:bg-red-500/20 border border-red-500/30 transition" title="Combat Simulator"
+            >
+                <Sword size={16} />
             </button>
         </div>
     </div>
