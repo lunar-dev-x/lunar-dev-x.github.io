@@ -53,6 +53,7 @@ const RouteTracker: React.FC<Props> = ({ routes, onUpdateRoute, onCatch, onAddRo
   const [p2Input, setP2Input] = useState('');
   const [p3Input, setP3Input] = useState('');
   const [statusInput, setStatusInput] = useState<Route['status']>('empty');
+  const [failedByInput, setFailedByInput] = useState<string[]>([]);
   const [pokemonList, setPokemonList] = useState<string[]>([]);
   
   // New State
@@ -79,6 +80,7 @@ const RouteTracker: React.FC<Props> = ({ routes, onUpdateRoute, onCatch, onAddRo
     setP2Input(route.encounterP2 || '');
     setP3Input(route.encounterP3 || '');
     setStatusInput(route.status);
+    setFailedByInput(route.failedBy || []);
   };
 
   const handleSave = (routeId: string) => {
@@ -86,11 +88,15 @@ const RouteTracker: React.FC<Props> = ({ routes, onUpdateRoute, onCatch, onAddRo
         onCatch(routeId, p1Input, p2Input, p3Input);
     }
     
+    // Typecast strictness for failedBy array
+    const cleanFailedBy = failedByInput as ('player1' | 'player2' | 'player3')[];
+
     onUpdateRoute(routeId, { 
       encounterP1: p1Input, 
       encounterP2: p2Input, 
       encounterP3: p3Input,
-      status: statusInput
+      status: statusInput,
+      failedBy: cleanFailedBy.length > 0 ? cleanFailedBy : undefined
     });
     setEditingId(null);
   };
@@ -261,6 +267,7 @@ const RouteTracker: React.FC<Props> = ({ routes, onUpdateRoute, onCatch, onAddRo
                     {/* Status */}
                     <td className="py-3 px-4">
                         {isEditing ? (
+                        <div className="flex flex-col gap-2">
                         <select 
                             className="bg-zinc-950 border border-zinc-700 rounded px-3 py-1.5 text-sm outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 text-zinc-300 w-full"
                             value={statusInput}
@@ -271,12 +278,28 @@ const RouteTracker: React.FC<Props> = ({ routes, onUpdateRoute, onCatch, onAddRo
                             <option value="failed">Failed</option>
                             <option value="skipped">Skipped</option>
                         </select>
+                        {(statusInput === 'failed' || statusInput === 'skipped') && (
+                            <div className="flex gap-1">
+                                <button onClick={() => setFailedByInput(prev => prev.includes('player1') ? prev.filter(p => p !== 'player1') : [...prev, 'player1'])} className={`flex-1 text-[10px] px-1 py-0.5 rounded border transition font-bold uppercase ${failedByInput.includes('player1') ? 'bg-blue-500/20 text-blue-400 border-blue-500/50' : 'bg-zinc-900 border-zinc-800 text-zinc-600 hover:border-zinc-700'}`}>P1</button>
+                                <button onClick={() => setFailedByInput(prev => prev.includes('player2') ? prev.filter(p => p !== 'player2') : [...prev, 'player2'])} className={`flex-1 text-[10px] px-1 py-0.5 rounded border transition font-bold uppercase ${failedByInput.includes('player2') ? 'bg-red-500/20 text-red-400 border-red-500/50' : 'bg-zinc-900 border-zinc-800 text-zinc-600 hover:border-zinc-700'}`}>P2</button>
+                                <button onClick={() => setFailedByInput(prev => prev.includes('player3') ? prev.filter(p => p !== 'player3') : [...prev, 'player3'])} className={`flex-1 text-[10px] px-1 py-0.5 rounded border transition font-bold uppercase ${failedByInput.includes('player3') ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/50' : 'bg-zinc-900 border-zinc-800 text-zinc-600 hover:border-zinc-700'}`}>P3</button>
+                            </div>
+                        )}
+                        </div>
                         ) : (
-                        <div className="flex items-center">
+                        <div className="flex flex-col gap-1 items-start">
                             {route.status === 'caught' && <span className="flex items-center gap-1.5 bg-emerald-500/10 text-emerald-400 px-2.5 py-1 rounded-full text-xs font-semibold border border-emerald-500/20"><Check size={12}/> Caught</span>}
                             {route.status === 'failed' && <span className="flex items-center gap-1.5 bg-red-500/10 text-red-400 px-2.5 py-1 rounded-full text-xs font-semibold border border-red-500/20"><X size={12}/> Failed</span>}
                             {route.status === 'skipped' && <span className="flex items-center gap-1.5 bg-zinc-700/30 text-zinc-400 px-2.5 py-1 rounded-full text-xs font-semibold border border-zinc-600/30"><Circle size={12}/> Skipped</span>}
                             {route.status === 'empty' && <span className="flex items-center gap-1.5 bg-zinc-800/30 text-zinc-500 px-2.5 py-1 rounded-full text-xs font-semibold border border-zinc-700/30"><Circle size={12}/> Open</span>}
+                            
+                            {(route.status === 'failed' || route.status === 'skipped') && route.failedBy && route.failedBy.length > 0 && (
+                                <div className="flex gap-1 ml-1 mt-1">
+                                    {route.failedBy.includes('player1') && <span className="w-2 h-2 rounded-full bg-blue-500" title="Player 1 Failed"></span>}
+                                    {route.failedBy.includes('player2') && <span className="w-2 h-2 rounded-full bg-red-500" title="Player 2 Failed"></span>}
+                                    {route.failedBy.includes('player3') && <span className="w-2 h-2 rounded-full bg-emerald-500" title="Player 3 Failed"></span>}
+                                </div>
+                            )}
                         </div>
                         )}
                     </td>
