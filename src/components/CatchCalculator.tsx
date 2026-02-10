@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { getPokemonDetails } from '../utils/pokeApi';
+import { getPokemonDetails, getAllPokemonNames } from '../utils/pokeApi';
 import { Target, X } from 'lucide-react';
+import AutocompleteInput from './AutocompleteInput';
 
 interface Props {
   isOpen: boolean;
@@ -54,9 +55,15 @@ const CatchCalculator: React.FC<Props> = ({ isOpen, onClose, initialSpecies = ''
   const [catchRate, setCatchRate] = useState<number | null>(null);
   const [result, setResult] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
+  const [allSpecies, setAllSpecies] = useState<string[]>([]);
+  
+  useEffect(() => {
+     getAllPokemonNames().then(setAllSpecies);
+  }, []);
 
   useEffect(() => {
-    if (species) {
+    // Only fetch if species is exactly in the list (prevents 404 spam)
+    if (species && allSpecies.includes(species.toLowerCase())) {
         setLoading(true);
         getPokemonDetails(species).then(data => {
             if (data && data.capture_rate) {
@@ -69,7 +76,7 @@ const CatchCalculator: React.FC<Props> = ({ isOpen, onClose, initialSpecies = ''
             setLoading(false);
         });
     }
-  }, [species]);
+  }, [species, allSpecies]);
 
   // Gen 5 Formula
   // B = (((3 * MaxHP - 2 * HP) * Rate * BallMod) / (3 * MaxHP)) * StatusMod
@@ -154,11 +161,12 @@ const CatchCalculator: React.FC<Props> = ({ isOpen, onClose, initialSpecies = ''
         <div className="grid grid-cols-2 gap-4 mb-6">
             <div className="col-span-2">
                 <label className="text-xs font-bold text-zinc-500 uppercase">Pokemon Species</label>
-                <input 
-                    className="w-full bg-zinc-800 border-zinc-700 rounded px-3 py-2 text-zinc-200"
+                <AutocompleteInput 
+                    className="w-full bg-zinc-800 border-zinc-700 rounded px-3 py-2 text-zinc-200 outline-none focus:ring-1 focus:ring-emerald-500"
                     placeholder="e.g. Mewtwo"
                     value={species}
-                    onChange={e => setSpecies(e.target.value)}
+                    onChange={setSpecies}
+                    options={allSpecies}
                 />
             </div>
             

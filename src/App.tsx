@@ -626,7 +626,7 @@ function App() {
             <CombatSimulator
                 isOpen={showCombatSim}
                 onClose={() => setShowCombatSim(false)}
-                userParty={state.pokemon.filter(p => p.status === 'party')}
+                allPokemon={state.pokemon}
             />
             {selectedPokemonForDetails && (
                 <PokemonDetailsModal

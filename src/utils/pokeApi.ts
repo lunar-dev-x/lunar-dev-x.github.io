@@ -18,7 +18,7 @@ export const getAllPokemonNames = async (): Promise<string[]> => {
   try {
     // Limit to 649 to include Gen 1-5 (Up to Genesect) for Pokemon Black 1 context
     // This avoids cluttering the list with Gen 6-9 pokemon which cannot exist in Black 1
-    const response = await fetch('https://pokeapi.co/api/v2/pokemon?limit=649');
+    const response = await fetch('https://pokeapi.co/api/v2/pokemon-species?limit=649');
     const data = await response.json();
     // Use only name
     pokemonCache = data.results.map((p: any) => p.name);
@@ -27,6 +27,19 @@ export const getAllPokemonNames = async (): Promise<string[]> => {
     console.error("Failed to fetch pokemon list", e);
     return [];
   }
+};
+
+let moveCache: string[] | null = null;
+export const getAllMoveNames = async (): Promise<string[]> => {
+    if (moveCache) return moveCache;
+    try {
+        const response = await fetch('https://pokeapi.co/api/v2/move?limit=600'); // Gen 5 limit
+        const data = await response.json();
+        moveCache = data.results.map((m: any) => m.name);
+        return moveCache || [];
+    } catch {
+        return [];
+    }
 };
 
 interface EvolutionOption {
@@ -48,9 +61,6 @@ export const getEvolutionOptions = async (currentSpecies: string): Promise<Evolu
     const chainData = await chainRes.json();
     
     // 3. Traverse Chain to find current pokemon and its next evolutions
-    let currentLink = chainData.chain;
-    
-    // Recursive search for the current species in the chain
     const findNode = (node: any): any => {
         if (node.species.name === currentSpecies.toLowerCase()) {
             return node;
@@ -62,7 +72,7 @@ export const getEvolutionOptions = async (currentSpecies: string): Promise<Evolu
         return null;
     };
 
-    const node = findNode(currentLink);
+    const node = findNode(chainData.chain);
     
     if (node && node.evolves_to.length > 0) {
         // Map all potential evolutions

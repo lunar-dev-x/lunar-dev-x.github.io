@@ -67,14 +67,14 @@ export const getTypeEffectiveness = (defendingTypes: string[]) => {
 // levelCap = The strict Nuzlocke cap (Gym Leader's Ace).
 // obedience = The max level outsiders will obey you AFTER getting this badge.
 export const BADGES = [
-    { id: 'trio', name: 'Trio Badge', levelCap: 14, obedience: 20, img: 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/items/trio-badge.png' },
-    { id: 'basic', name: 'Basic Badge', levelCap: 20, obedience: 30, img: 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/items/basic-badge.png' },
-    { id: 'insect', name: 'Insect Badge', levelCap: 23, obedience: 40, img: 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/items/insect-badge.png' },
-    { id: 'bolt', name: 'Bolt Badge', levelCap: 27, obedience: 50, img: 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/items/bolt-badge.png' },
-    { id: 'quake', name: 'Quake Badge', levelCap: 31, obedience: 60, img: 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/items/quake-badge.png' },
-    { id: 'jet', name: 'Jet Badge', levelCap: 35, obedience: 70, img: 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/items/jet-badge.png' },
-    { id: 'freeze', name: 'Freeze Badge', levelCap: 39, obedience: 80, img: 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/items/freeze-badge.png' },
-    { id: 'legend', name: 'Legend Badge', levelCap: 43, obedience: 100, img: 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/items/legend-badge.png' }
+    { id: 'trio', name: 'Trio Badge', levelCap: 14, obedience: 20, img: 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/badges/33.png' },
+    { id: 'basic', name: 'Basic Badge', levelCap: 20, obedience: 30, img: 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/badges/34.png' },
+    { id: 'insect', name: 'Insect Badge', levelCap: 23, obedience: 40, img: 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/badges/36.png' },
+    { id: 'bolt', name: 'Bolt Badge', levelCap: 27, obedience: 50, img: 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/badges/37.png' },
+    { id: 'quake', name: 'Quake Badge', levelCap: 31, obedience: 60, img: 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/badges/38.png' },
+    { id: 'jet', name: 'Jet Badge', levelCap: 35, obedience: 70, img: 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/badges/39.png' },
+    { id: 'freeze', name: 'Freeze Badge', levelCap: 39, obedience: 80, img: 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/badges/40.png' },
+    { id: 'legend', name: 'Legend Badge', levelCap: 43, obedience: 100, img: 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/badges/41.png' }
 ];
 
 export const FINAL_CAPS = {
