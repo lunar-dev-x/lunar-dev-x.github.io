@@ -5,13 +5,15 @@ import { motion, AnimatePresence } from 'framer-motion';
 interface SyncManagerProps {
   sessionId: string;
   isConnected: boolean;
+  isHost: boolean;
   userCount: number;
   createSession: () => Promise<string | null>;
   joinSession: (id: string) => void;
   leaveSession: () => void;
+  terminateSession: () => void;
 }
 
-const SyncManager: React.FC<SyncManagerProps> = ({ sessionId, isConnected, userCount, createSession, joinSession, leaveSession }) => {
+const SyncManager: React.FC<SyncManagerProps> = ({ sessionId, isConnected, isHost, userCount, createSession, joinSession, leaveSession, terminateSession }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [targetId, setTargetId] = useState('');
   const [loading, setLoading] = useState(false);
@@ -137,10 +139,16 @@ const SyncManager: React.FC<SyncManagerProps> = ({ sessionId, isConnected, userC
                     <span className="text-lg font-bold text-white font-mono">{userCount}</span>
                 </div>
 
-                <div className="pt-2 border-t border-zinc-800">
-                    <button onClick={leaveSession} className="w-full flex items-center justify-center gap-2 text-red-400 hover:bg-red-400/10 py-2 rounded-md text-sm transition">
+                <div className="pt-2 border-t border-zinc-800 space-y-2">
+                    {isHost && (
+                        <button onClick={terminateSession} className="w-full flex items-center justify-center gap-2 text-red-500 hover:bg-red-500/10 hover:border-red-500/20 border border-transparent py-2 rounded-md text-sm transition font-medium">
+                             <WifiOff size={14} />
+                             <span>End Session</span>
+                        </button>
+                    )}
+                    <button onClick={leaveSession} className="w-full flex items-center justify-center gap-2 text-zinc-400 hover:text-white hover:bg-zinc-800 py-2 rounded-md text-sm transition">
                         <LogOut size={14} />
-                        <span>Disconnect Session</span>
+                        <span>Disconnect Local</span>
                     </button>
                 </div>
                 </div>

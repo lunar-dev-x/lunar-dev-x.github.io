@@ -25,6 +25,26 @@ const getPairColor = (id: string) => {
 
 const GraveyardGroup = ({ pairId, pokemonList, onUpdate, onContextMenu }: { pairId: string, pokemonList: Pokemon[], onUpdate?: (id: string, updates: Partial<Pokemon>) => void, onContextMenu?: (e: React.MouseEvent, id: string) => void }) => {
     const [isOpen, setIsOpen] = useState(false);
+    
+    // Shared Description State
+    const [description, setDescription] = useState(pokemonList[0]?.incidentDescription || '');
+    
+    // Update local state when props change (remote changes)
+    React.useEffect(() => {
+        if (isOpen) {
+             setDescription(pokemonList[0]?.incidentDescription || '');
+        }
+    }, [pokemonList, isOpen]);
+
+    const handleSaveDescription = () => {
+        pokemonList.forEach(p => {
+             // Only update if changed prevents network spam
+             if (p.incidentDescription !== description) {
+                 onUpdate?.(p.id, { incidentDescription: description });
+             }
+        });
+    };
+
     const color = getPairColor(pairId);
     
     // Determine Killer from the group (assuming they usually sync, but we take the first found)
@@ -44,12 +64,23 @@ const GraveyardGroup = ({ pairId, pokemonList, onUpdate, onContextMenu }: { pair
                         <span className="text-xs font-mono text-zinc-500 uppercase">{pairId.slice(0, 8)}</span>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
                         {pokemonList.map(p => (
                              <div key={p.id} className="relative group">
                                 <PokemonCard pokemon={p} onUpdate={onUpdate} onContextMenu={(e) => onContextMenu?.(e, p.id)} />
                              </div>
                         ))}
+                    </div>
+
+                    <div className="pt-4 border-t border-zinc-800">
+                        <label className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-2 block">Incident Report</label>
+                        <textarea 
+                            className="w-full bg-zinc-950/50 border border-zinc-700/50 rounded-lg p-3 text-sm text-zinc-300 placeholder:text-zinc-700 focus:outline-none focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/20 transition resize-none h-24"
+                            placeholder="How did they meet their end? (Auto-saves on blur)"
+                            value={description}
+                            onChange={(e) => setDescription(e.target.value)}
+                            onBlur={handleSaveDescription}
+                        />
                     </div>
                 </div>
             </div>

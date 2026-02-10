@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { db } from '../firebase';
-import { ref, onValue, set, push, child, get, onDisconnect } from 'firebase/database';
+import { ref, onValue, set, push, child, get, onDisconnect, remove } from 'firebase/database';
 import { AppState } from '../types';
 
 export const useMultiplayer = (
@@ -159,6 +159,20 @@ export const useMultiplayer = (
       setUserCount(0);
   }, []);
 
+  const terminateSession = useCallback(async () => {
+    if (sessionId && isHost) {
+        if (confirm("Are you sure you want to delete this session for everyone? This cannot be undone.")) {
+            try {
+                await remove(ref(db, `sessions/${sessionId}`));
+                leaveSession();
+            } catch (err) {
+                console.error("Termination Failed:", err);
+                alert("Failed to terminate session.");
+            }
+        }
+    }
+  }, [sessionId, isHost, leaveSession]);
+
   return {
       sessionId,
       isConnected,
@@ -167,6 +181,7 @@ export const useMultiplayer = (
       createSession,
       joinSession,
       leaveSession,
+      terminateSession,
       syncState
   };
 };

@@ -12,6 +12,7 @@ export interface Pokemon {
   pairId: string; // The ID shared with the soul linked partner
   route?: string;
   killedBy?: Player; // Who caused the death
+  incidentDescription?: string; // Description of how they died
 }
 
 export interface Route {

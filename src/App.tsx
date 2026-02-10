@@ -126,7 +126,7 @@ function App() {
     });
   }, []);
 
-  const { sessionId, isConnected, userCount, createSession, joinSession, leaveSession, syncState } = useMultiplayer(state, handleStateReceived);
+  const { sessionId, isConnected, isHost, userCount, createSession, joinSession, leaveSession, terminateSession, syncState } = useMultiplayer(state, handleStateReceived);
 
   const updateState = (updater: (prev: AppState) => AppState) => {
       setState(prev => {
@@ -478,10 +478,12 @@ function App() {
                 <SyncManager 
                   sessionId={sessionId}
                   isConnected={isConnected}
+                  isHost={isHost}
                   userCount={userCount}
                   createSession={createSession}
                   joinSession={joinSession}
                   leaveSession={leaveSession}
+                  terminateSession={terminateSession}
                 />
                 
                 <div className="h-6 w-px bg-zinc-800 mx-1"></div>
