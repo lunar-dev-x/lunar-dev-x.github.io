@@ -4,9 +4,11 @@ const DISCORD_WEBHOOK_URL = 'https://discord.com/api/webhooks/147057869284455648
 
 export const sendSaveToDiscord = async (state: AppState, reason: string) => {
     try {
-        const timestamp = new Date().toISOString();
+        const now = new Date();
+        const timestamp = now.toLocaleString('en-GB', { timeZone: 'UTC' }).replace(',', '') + ' UTC';
+        const isoStamp = now.toISOString();
         const jsonString = JSON.stringify(state, null, 2);
-        const fileName = `soullink_save_${timestamp.slice(0, 10)}.json`;
+        const fileName = `soullink_save_${isoStamp.slice(0, 10)}.json`;
         
         // Create a blob for the file
         const blob = new Blob([jsonString], { type: 'application/json' });

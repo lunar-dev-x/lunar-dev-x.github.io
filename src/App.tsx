@@ -420,6 +420,24 @@ function App() {
       updateState(prev => ({ ...prev, pokemon: newPokemonList }));
   };
 
+  // --- Rename Logic ---
+  const [renameModal, setRenameModal] = useState<{ isOpen: boolean, pokemonId: string, currentName: string }>({ isOpen: false, pokemonId: '', currentName: '' });
+
+  const handleRename = (id: string) => {
+      const p = (state.pokemon || []).find(pk => pk.id === id);
+      if (!p) return;
+      
+      setRenameModal({ isOpen: true, pokemonId: id, currentName: p.nickname || p.species });
+      setContextMenu(null);
+  };
+  
+  const saveNickname = () => {
+      if (renameModal.pokemonId) {
+          updatePokemon(renameModal.pokemonId, { nickname: renameModal.currentName });
+          setRenameModal({ isOpen: false, pokemonId: '', currentName: '' });
+      }
+  };
+
   const [contextMenu, setContextMenu] = useState<{ x: number, y: number, pokemonId: string } | null>(null);
 
   const handleContextMenu = (e: React.MouseEvent, pokemonId: string) => {
@@ -666,6 +684,12 @@ function App() {
                style={{ top: contextMenu.y, left: contextMenu.x }}
              >
                 <button 
+                  onClick={() => handleRename(contextMenu.pokemonId)}
+                  className="w-full text-left px-4 py-2 hover:bg-zinc-800 text-zinc-200 flex items-center gap-2"
+                >
+                   Rename
+                </button>
+                <button 
                   onClick={() => handleEvolve(contextMenu.pokemonId)}
                   className="w-full text-left px-4 py-2 hover:bg-zinc-800 text-zinc-200 flex items-center gap-2"
                 >
@@ -684,6 +708,36 @@ function App() {
                 >
                    <Skull size={14} /> Send to Graveyard
                 </button>
+             </div>
+          )}
+
+          {/* Rename Modal */}
+          {renameModal.isOpen && (
+             <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+                 <div className="bg-zinc-900 border border-zinc-700 rounded-xl p-6 max-w-sm w-full shadow-2xl">
+                     <h3 className="text-lg font-bold text-white mb-4">Rename Pokemon</h3>
+                     <input 
+                         className="w-full bg-zinc-950 border border-zinc-700 rounded-lg px-4 py-2 text-zinc-200 outline-none focus:ring-1 focus:ring-emerald-500 mb-4"
+                         value={renameModal.currentName}
+                         onChange={e => setRenameModal(prev => ({ ...prev, currentName: e.target.value }))}
+                         onKeyDown={e => e.key === 'Enter' && saveNickname()}
+                         autoFocus
+                     />
+                     <div className="flex gap-2 justify-end">
+                         <button 
+                             onClick={() => setRenameModal({ isOpen: false, pokemonId: '', currentName: '' })}
+                             className="px-4 py-2 text-zinc-400 hover:bg-zinc-800 rounded-lg"
+                         >
+                             Cancel
+                         </button>
+                         <button 
+                             onClick={saveNickname}
+                             className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-medium"
+                         >
+                             Save
+                         </button>
+                     </div>
+                 </div>
              </div>
           )}
 
