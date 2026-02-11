@@ -1,9 +1,9 @@
 // Advanced Combat Sim - Battle Scenario / Solver
 import React, { useState, useEffect, useMemo } from 'react';
-import { TYPE_CHART, TYPE_COLORS, WEATHER_MODIFIERS } from '../utils/gameData';
+import { TYPE_CHART, TYPE_COLORS } from '../utils/gameData';
 import { getPokemonDetails, getMoveDetails, getAllPokemonNames, getAllMoveNames } from '../utils/pokeApi';
 import { TRAINER_PRESETS } from '../utils/trainerPresets';
-import { Sword, X, Shield, TrendingUp, Crosshair, CloudSun, CloudRain, Cloud, Wind, Sun } from 'lucide-react';
+import { Sword, X, Shield, TrendingUp, Crosshair, CloudRain, Cloud, Wind, Sun } from 'lucide-react';
 import { Pokemon } from '../types';
 import AutocompleteInput from './AutocompleteInput';
 import { motion, AnimatePresence } from 'framer-motion';
