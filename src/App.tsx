@@ -19,7 +19,7 @@ import BadgeTracker from './components/BadgeTracker';
 import TeamAnalysis from './components/TeamAnalysis';
 import CatchCalculator from './components/CatchCalculator';
 // Helper for battle scenarios
-import CombatSimulator from './components/CombatSimulator.tsx';
+import CombatSimulator from './components/CombatSimulator';
 
 const INITIAL_ROUTES: Route[] = [
   { id: 'start', name: 'Nuvema Town (Starter)', status: 'empty' },
@@ -76,7 +76,8 @@ function App() {
       const parsed = JSON.parse(saved);
       
       // Smart merge of routes: preserve status/encounters for existing IDs, but use new Names/Order from INITIAL_ROUTES
-      const mergedRoutes = INITIAL_ROUTES.map(initialRoute => {
+      const initialIds = new Set(INITIAL_ROUTES.map(r => r.id));
+      let mergedRoutes = INITIAL_ROUTES.map(initialRoute => {
         const savedRoute = parsed.routes.find((r: Route) => r.id === initialRoute.id);
         if (savedRoute) {
           return {
@@ -84,11 +85,17 @@ function App() {
             status: savedRoute.status,
             encounterP1: savedRoute.encounterP1,
             encounterP2: savedRoute.encounterP2,
-            encounterP3: savedRoute.encounterP3
+            encounterP3: savedRoute.encounterP3,
+            failedBy: savedRoute.failedBy || undefined, // Ensure no nulls
+            isCustom: savedRoute.isCustom
           };
         }
         return initialRoute;
       });
+
+      // Recover Custom Routes
+      const customRoutes = (parsed.routes || []).filter((r: Route) => !initialIds.has(r.id));
+      mergedRoutes = [...mergedRoutes, ...customRoutes];
 
       return {
           ...parsed,

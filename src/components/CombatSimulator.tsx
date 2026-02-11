@@ -1,9 +1,9 @@
 // Advanced Combat Sim - Battle Scenario / Solver
 import React, { useState, useEffect, useMemo } from 'react';
-import { TYPE_CHART, TYPE_COLORS } from '../utils/gameData';
+import { TYPE_CHART, TYPE_COLORS, WEATHER_MODIFIERS } from '../utils/gameData';
 import { getPokemonDetails, getMoveDetails, getAllPokemonNames, getAllMoveNames } from '../utils/pokeApi';
 import { TRAINER_PRESETS } from '../utils/trainerPresets';
-import { Sword, X, Shield, TrendingUp, Crosshair } from 'lucide-react';
+import { Sword, X, Shield, TrendingUp, Crosshair, CloudSun, CloudRain, Cloud, Wind, Sun } from 'lucide-react';
 import { Pokemon } from '../types';
 import AutocompleteInput from './AutocompleteInput';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -141,7 +141,8 @@ const calculateStat = (base: number, level: number, isHp: boolean) => {
 const calculateDamage = (
     attacker: BattlePokemon | EnemyMon, 
     defender: BattlePokemon | EnemyMon, 
-    move: ExtendedMove
+    move: ExtendedMove,
+    weather: string = 'none'
 ) => {
     // 1. Determine Stats
     const isPhysical = move.damage_class === 'physical';
@@ -150,13 +151,20 @@ const calculateDamage = (
     if (!isPhysical && !isSpecial) return { min: 0, max: 0, typeEff: 1 }; // Status moves
 
     const atkStat = isPhysical ? attacker.realStats.attack : attacker.realStats['special-attack'];
-    const defStat = isPhysical ? defender.realStats.defense : defender.realStats['special-defense'];
+    let defStat = isPhysical ? defender.realStats.defense : defender.realStats['special-defense'];
     
+    // Sandstorm SpDef Boost for Rock types
+    if (weather === 'sand' && defender.types.includes('rock') && !isPhysical) {
+        defStat = Math.floor(defStat * 1.5);
+    }
+
     const atkStage = isPhysical ? attacker.stages.attack : attacker.stages['special-attack'];
     const defStage = isPhysical ? defender.stages.defense : defender.stages['special-defense'];
 
     const a = atkStat * STAGE_MULTIPLIERS[atkStage];
-    const d = defStat * STAGE_MULTIPLIERS[defStage];
+    let d = defStat * STAGE_MULTIPLIERS[defStage];
+
+    // Screen support could go here (Reflect/Light Screen)
 
     // 2. Base Damage
     // Level formula: ((2 * Level / 5 + 2) * Power * A / D) / 50 + 2
@@ -166,6 +174,20 @@ const calculateDamage = (
     base = Math.floor(base / 50) + 2;
 
     // 3. Modifiers
+    // Weather
+    if (weather === 'sun') {
+        if (move.type === 'fire') base = Math.floor(base * 1.5);
+        if (move.type === 'water') base = Math.floor(base * 0.5);
+    } else if (weather === 'rain') {
+        if (move.type === 'water') base = Math.floor(base * 1.5);
+        if (move.type === 'fire') base = Math.floor(base * 0.5);
+    }
+
+    // Burn (Physical nerf unless Guts - ignoring Guts for now)
+    if (attacker.condition === 'burn' && isPhysical) {
+        base = Math.floor(base * 0.5);
+    }
+
     // STAB
     const attackerTypes = attacker.types || [];
     const stab = attackerTypes.includes(move.type) ? 1.5 : 1;
@@ -195,19 +217,48 @@ const CombatSimulator: React.FC<Props> = ({ isOpen, onClose, allPokemon, playerN
   const [activeBox, setActiveBox] = useState<'party' | 'box'>('party'); 
 
   // --- Scenario State ---
-  const [activeTab, setActiveTab] = useState<'setup' | 'battle'>('setup');
+  // Load from LocalStorage to persist across reloads
+  const [activeTab, setActiveTab] = useState<'setup' | 'battle'>(() => 
+      (localStorage.getItem('sim_activeTab') as 'setup' | 'battle') || 'setup'
+  );
+  const [weather, setWeather] = useState<string>(() => 
+      localStorage.getItem('sim_weather') || 'none'
+  );
   
   // --- Enemy State ---
-  const [enemySpecies, setEnemySpecies] = useState('');
-  const [enemyLevel, setEnemyLevel] = useState(50);
-  const [enemyMoves, setEnemyMoves] = useState<string[]>(['', '', '', '']);
-  const [enemyData, setEnemyData] = useState<EnemyMon | null>(null);
+  const [enemySpecies, setEnemySpecies] = useState(() => localStorage.getItem('sim_enemySpecies') || '');
+  const [enemyLevel, setEnemyLevel] = useState(() => parseInt(localStorage.getItem('sim_enemyLevel') || '50'));
+  
+  const [enemyMoves, setEnemyMoves] = useState<string[]>(() => {
+      try {
+          return JSON.parse(localStorage.getItem('sim_enemyMoves') || '["", "", "", ""]');
+      } catch { return ['', '', '', '']; }
+  });
+
+  const [enemyData, setEnemyData] = useState<EnemyMon | null>(() => {
+      try {
+          const saved = localStorage.getItem('sim_enemyData');
+          return saved ? JSON.parse(saved) : null;
+      } catch { return null; }
+  });
+
   const [enemyLoading, setEnemyLoading] = useState(false);
-  const [possibleEnemyMoves, setPossibleEnemyMoves] = useState<any[]>([]); // Changed to any[] for details
+  const [possibleEnemyMoves, setPossibleEnemyMoves] = useState<any[]>([]); 
   
   // Lists
   const [allSpeciesList, setAllSpeciesList] = useState<string[]>([]);
   const [allMovesList, setAllMovesList] = useState<string[]>([]);
+
+  // Persistence Effects
+  useEffect(() => { localStorage.setItem('sim_activeTab', activeTab); }, [activeTab]);
+  useEffect(() => { localStorage.setItem('sim_weather', weather); }, [weather]);
+  useEffect(() => { localStorage.setItem('sim_enemySpecies', enemySpecies); }, [enemySpecies]);
+  useEffect(() => { localStorage.setItem('sim_enemyLevel', enemyLevel.toString()); }, [enemyLevel]);
+  useEffect(() => { localStorage.setItem('sim_enemyMoves', JSON.stringify(enemyMoves)); }, [enemyMoves]);
+  useEffect(() => { 
+      if (enemyData) localStorage.setItem('sim_enemyData', JSON.stringify(enemyData)); 
+      else localStorage.removeItem('sim_enemyData');
+  }, [enemyData]);
 
   useEffect(() => {
     getAllPokemonNames().then(setAllSpeciesList);
@@ -323,14 +374,26 @@ const CombatSimulator: React.FC<Props> = ({ isOpen, onClose, allPokemon, playerN
   };
 
   const [selectedMoveSlot, setSelectedMoveSlot] = useState<number | null>(null);
-  const [lockedMoves, setLockedMoves] = useState<boolean[]>([false, false, false, false]);
+  const [lockedMoves, setLockedMoves] = useState<boolean[]>(() => {
+      try {
+          return JSON.parse(localStorage.getItem('sim_lockedMoves') || '[false, false, false, false]');
+      } catch { return [false, false, false, false]; }
+  });
+
+  useEffect(() => { localStorage.setItem('sim_lockedMoves', JSON.stringify(lockedMoves)); }, [lockedMoves]);
 
   const updateEnemySpecies = (val: string) => {
       setEnemySpecies(val);
-      // Reset moves when species changes unless locked? No, new species = new moves.
-      setEnemyMoves(['', '', '', '']);
-      setLockedMoves([false, false, false, false]);
-      setPossibleEnemyMoves([]);
+      // Only reset if empty moves - user might want to keep moves if just fixing typo
+      // But typically new species = new moves. Let's keep existing behavior but maybe less aggressive?
+      // No, strictly, species change invalidates moves usually.
+      if (val !== enemySpecies) {
+          setEnemyMoves(['', '', '', '']);
+          setLockedMoves([false, false, false, false]);
+          setPossibleEnemyMoves([]);
+          setActiveTab('setup'); // Force setup on new species
+          setEnemyData(null); // Clear battle data
+      }
   };
 
   const handleFillMoves = () => {
@@ -447,7 +510,7 @@ const CombatSimulator: React.FC<Props> = ({ isOpen, onClose, allPokemon, playerN
 
   // --- SOLVER LOGIC ---
   
-  const analyzeMatchup = (myMon: BattlePokemon, enemy: EnemyMon): AnalysisResult | null => {
+  const analyzeMatchup = (myMon: BattlePokemon, enemy: EnemyMon, weather: string): AnalysisResult | null => {
       if (!myMon.realStats || !enemy.realStats) return null;
 
       // 1. Speed Check
@@ -459,7 +522,8 @@ const CombatSimulator: React.FC<Props> = ({ isOpen, onClose, allPokemon, playerN
       else if (mySpeed < enSpeed) speedResult = 'slower';
 
       // 2. Incoming Damage (Survival)
-      let maxIncomingPct = 0;
+      let maxIncomingPct = 0; // Relative to MAX HP (for risk assessment)
+      let maxIncomingRaw = 0; // Raw damage for accurate turns to die
       let worstEnemyMoveStr = 'None';
       let enemyBestMove: ExtendedMove | null = null;
       let threateningMoves: { name: string, pct: number, isStatus?: boolean }[] = [];
@@ -478,10 +542,13 @@ const CombatSimulator: React.FC<Props> = ({ isOpen, onClose, allPokemon, playerN
               }
               return;
           }
-          const dmg = calculateDamage(enemy, myMon, m);
+          const dmg = calculateDamage(enemy, myMon, m, weather);
           // Use Max Roll for safety
-          const pct = Math.min(100, Math.ceil((dmg.max / myMon.maxHp) * 100));
-          if (pct > maxIncomingPct) {
+          const raw = dmg.max;
+          const pct = Math.min(100, Math.ceil((raw / myMon.maxHp) * 100));
+          
+          if (raw > maxIncomingRaw) {
+              maxIncomingRaw = raw;
               maxIncomingPct = pct;
               worstEnemyMoveStr = m.name;
               enemyBestMove = m;
@@ -495,6 +562,7 @@ const CombatSimulator: React.FC<Props> = ({ isOpen, onClose, allPokemon, playerN
 
       // 3. Outgoing Damage (Kill Potential)
       let maxOutgoingPct = 0;
+      let maxOutgoingRaw = 0;
       let bestMoveStr = 'None';
       let myBestMove: ExtendedMove | null = null;
       let killMoves: { name: string, pct: number }[] = [];
@@ -506,10 +574,13 @@ const CombatSimulator: React.FC<Props> = ({ isOpen, onClose, allPokemon, playerN
 
       myMovesToTest.forEach(m => {
           if (m.damage_class === 'status') return;
-          const dmg = calculateDamage(myMon, enemy, m);
+          const dmg = calculateDamage(myMon, enemy, m, weather);
           // Use Min Roll for reliability
-          const pct = Math.floor((dmg.min / enemy.maxHp) * 100); 
-          if (pct > maxOutgoingPct) {
+          const raw = dmg.min;
+          const pct = Math.floor((raw / enemy.maxHp) * 100); 
+          
+          if (raw > maxOutgoingRaw) {
+              maxOutgoingRaw = raw;
               maxOutgoingPct = pct;
               bestMoveStr = m.name;
               myBestMove = m;
@@ -518,12 +589,16 @@ const CombatSimulator: React.FC<Props> = ({ isOpen, onClose, allPokemon, playerN
       });
 
       // 4. Turn Analysis
-      // turnsToDie: how many hits from enemy to kill me?
-      // If pct is 0, turns is infinity. If pct > 100 (forced danger), turns is 1.
-      const turnsToDie = maxIncomingPct >= 100 ? 1 : (maxIncomingPct > 0 ? Math.ceil(100 / maxIncomingPct) : 999);
+      // turnsToDie: how many hits from enemy to kill me (Current HP)?
+      const effectiveMyHp = myMon.currentHp ?? myMon.maxHp;
+      const turnsToDie = maxIncomingRaw >= effectiveMyHp ? 1 : (maxIncomingRaw > 0 ? Math.ceil(effectiveMyHp / maxIncomingRaw) : 999);
       
-      // turnsToWin: how many hits from me to kill enemy?
-      const turnsToWin = maxOutgoingPct > 0 ? Math.ceil(100 / maxOutgoingPct) : 999;
+      // Control Threat overrides turnsToDie
+      const actualTurnsToDie = maxIncomingPct >= 999 ? 1 : turnsToDie;
+
+      // turnsToWin: how many hits from me to kill enemy (Current HP)?
+      const effectiveEnemyHp = enemy.currentHp ?? enemy.maxHp;
+      const turnsToWin = maxOutgoingRaw >= effectiveEnemyHp ? 1 : (maxOutgoingRaw > 0 ? Math.ceil(effectiveEnemyHp / maxOutgoingRaw) : 999);
 
       // 5. Winning Score & Safety
       let score = 0;
@@ -533,22 +608,22 @@ const CombatSimulator: React.FC<Props> = ({ isOpen, onClose, allPokemon, playerN
       if (speedResult === 'faster') {
           // I go first.
           const hitsTaken = turnsToWin - 1; 
-          const damageTaken = hitsTaken * maxIncomingPct;
+          const damageTaken = hitsTaken * maxIncomingRaw;
           
-          if (hitsTaken < turnsToDie) {
+          if (hitsTaken < actualTurnsToDie) {
                // I win
                if (damageTaken === 0) {
                    safetyRating = 'Safe';
                    score = 100 + (maxOutgoingPct); 
-               } else if (damageTaken < 50) {
+               } else if (damageTaken < (effectiveMyHp * 0.5)) { // Less than 50% of CURRENT HP lost? No, risk is usually relative to total, but mid-battle, if I have 10HP and take 5dmg, is that safe? Yes.
                    safetyRating = 'Safe';
-                   score = 80 - damageTaken;
-               } else if (damageTaken < 80) {
+                   score = 80 - (damageTaken / myMon.maxHp * 100);
+               } else if (damageTaken < (effectiveMyHp * 0.8)) {
                    safetyRating = 'Trade';
-                   score = 60 - damageTaken;
-               } else if (damageTaken < 100) {
+                   score = 60 - (damageTaken / myMon.maxHp * 100);
+               } else if (damageTaken < effectiveMyHp) {
                    safetyRating = 'Risky';
-                   score = 40 - damageTaken;
+                   score = 40 - (damageTaken / myMon.maxHp * 100);
                } else {
                    safetyRating = 'Dead'; 
                    score = -50;
@@ -560,19 +635,19 @@ const CombatSimulator: React.FC<Props> = ({ isOpen, onClose, allPokemon, playerN
       } else {
           // They go first.
           const hitsTaken = turnsToWin;
-          const damageTaken = hitsTaken * maxIncomingPct;
+          const damageTaken = hitsTaken * maxIncomingRaw;
 
-          if (hitsTaken < turnsToDie) {
+          if (hitsTaken < actualTurnsToDie) {
                // I survive the required hits
-               if (damageTaken < 50) {
+               if (damageTaken < (effectiveMyHp * 0.5)) {
                    safetyRating = 'Safe';
-                   score = 70 - damageTaken;
-               } else if (damageTaken < 80) {
+                   score = 70 - (damageTaken / myMon.maxHp * 100);
+               } else if (damageTaken < (effectiveMyHp * 0.8)) {
                    safetyRating = 'Trade';
-                   score = 50 - damageTaken;
-               } else if (damageTaken < 100) {
+                   score = 50 - (damageTaken / myMon.maxHp * 100);
+               } else if (damageTaken < effectiveMyHp) {
                    safetyRating = 'Risky';
-                   score = 30 - damageTaken;
+                   score = 30 - (damageTaken / myMon.maxHp * 100);
                } else {
                    safetyRating = 'Dead';
                    score = -50;
@@ -619,11 +694,11 @@ const CombatSimulator: React.FC<Props> = ({ isOpen, onClose, allPokemon, playerN
       return battleParty
         .filter(p => p.currentHp > 0)
         .map(p => {
-            const analysis = analyzeMatchup(p, enemyData);
+            const analysis = analyzeMatchup(p, enemyData, weather);
             return { id: p.id, pokemon: p, analysis, score: analysis?.score || -999 };
         })
         .sort((a, b) => b.score - a.score);
-  }, [battleParty, enemyData]);
+  }, [battleParty, enemyData, weather]);
 
 
     // STRATEGY CALCULATOR for when things go wrong
@@ -721,6 +796,25 @@ const CombatSimulator: React.FC<Props> = ({ isOpen, onClose, allPokemon, playerN
                    <button onClick={() => setActiveTab('setup')} className={`px-3 py-1 rounded transition-colors ${activeTab === 'setup' ? 'bg-zinc-800 text-zinc-100 shadow-sm' : 'text-zinc-500 hover:text-zinc-300'}`}>Setup</button>
                    <button onClick={() => setActiveTab('battle')} className={`px-3 py-1 rounded transition-colors ${activeTab === 'battle' ? 'bg-zinc-100 text-zinc-900 font-bold' : 'text-zinc-500 hover:text-zinc-300'}`} disabled={!enemyData}>Battle</button>
                </div>
+
+                {/* Weather Controls */}
+               <div className="hidden md:flex bg-zinc-900 border border-zinc-800 rounded-lg p-1 ml-4 items-center">
+                    <span className="text-[10px] uppercase font-bold text-zinc-600 px-2 select-none">Wx</span>
+                   {(['none', 'sun', 'rain', 'sand', 'hail'] as const).map(w => (
+                       <button 
+                           key={w}
+                           onClick={() => setWeather(w)}
+                           className={`p-1.5 rounded transition-colors ${weather === w ? 'bg-zinc-800 text-yellow-500' : 'text-zinc-600 hover:text-zinc-400'}`}
+                           title={`Weather: ${w.charAt(0).toUpperCase() + w.slice(1)}`}
+                        >
+                            {w === 'none' && <span className="text-xs font-bold px-1">—</span>}
+                            {w === 'sun' && <Sun size={14} />}
+                            {w === 'rain' && <CloudRain size={14} />}
+                            {w === 'sand' && <Wind size={14} />}
+                            {w === 'hail' && <Cloud size={14} />}
+                        </button>
+                   ))}
+               </div>
            </div>
            
            <div className="flex gap-2">
@@ -801,6 +895,21 @@ const CombatSimulator: React.FC<Props> = ({ isOpen, onClose, allPokemon, playerN
                                                 {STAT_LABELS[stat]}
                                             </span>
                                             <div className="flex items-center gap-1">
+                                                {stat === 'hp' && (
+                                                    <div className="flex items-center gap-1">
+                                                        <span className="text-[9px] text-zinc-500">Cur</span>
+                                                        <input 
+                                                            type="number" 
+                                                            className="w-10 bg-zinc-950 border border-zinc-800 text-right px-1 rounded no-spinner focus:border-blue-500 outline-none text-zinc-300"
+                                                            value={mon.currentHp ?? mon.maxHp}
+                                                            onChange={(e) => {
+                                                                const val = parseInt(e.target.value) || 0;
+                                                                setBattleParty(prev => prev.map(p => p.id === mon.id ? { ...p, currentHp: val } : p));
+                                                            }} 
+                                                        />
+                                                        <span className="text-zinc-600">/</span>
+                                                    </div>
+                                                )}
                                                 <input 
                                                     type="number" 
                                                     className={`w-12 bg-zinc-950 border border-zinc-800 text-right px-1 rounded no-spinner focus:border-red-500 outline-none ${stat === 'speed' ? 'text-blue-300' : 'text-zinc-300'}`}
@@ -988,13 +1097,13 @@ const CombatSimulator: React.FC<Props> = ({ isOpen, onClose, allPokemon, playerN
                                        </div>
                                    )}
                                 </div>
-                            
+
                                 <button 
                                     onClick={loadEnemy} 
                                     disabled={!enemySpecies || enemyLoading}
-                                    className="w-full py-3 bg-red-600 hover:bg-red-500 text-white font-bold rounded-lg flex items-center justify-center gap-2 transition disabled:opacity-50 disabled:cursor-not-allowed mt-4 shadow-lg shadow-red-900/20"
+                                    className="w-full py-3 bg-zinc-100 hover:bg-white text-zinc-950 font-bold rounded-lg flex items-center justify-center gap-2 transition disabled:opacity-50 disabled:cursor-not-allowed mt-4 shadow-lg shadow-zinc-900/20"
                                 >
-                                    {enemyLoading ? <div className="animate-spin rounded-full h-4 w-4 border-2 border-white/20 border-t-white"></div> : <Crosshair className="w-4 h-4" />}
+                                    {enemyLoading ? <div className="animate-spin rounded-full h-4 w-4 border-2 border-zinc-950/20 border-t-zinc-950"></div> : <Crosshair className="w-4 h-4" />}
                                     Analyze Encounter
                                 </button>
                             </div>
@@ -1153,10 +1262,15 @@ const CombatSimulator: React.FC<Props> = ({ isOpen, onClose, allPokemon, playerN
                                                       </span>
                                                  </div>
 
-                                                 <div className="text-xs text-zinc-400">
-                                                     <span className="text-zinc-500">Plan:</span> Use <span className="font-bold text-zinc-200">{activeMatchup.analysis.bestMoveStr}</span> ({activeMatchup.analysis.maxOutgoingPct}% min)
-                                                     <span className="mx-2">|</span>
-                                                     <span className="text-zinc-500">Risk:</span> Takes {activeMatchup.analysis.isControlRisk ? 'Control Effect' : activeMatchup.analysis.maxIncomingPct + '% max'} from {activeMatchup.analysis.worstEnemyMoveStr}
+                                                 <div className="mt-2 bg-black/50 border border-white/5 rounded p-2 text-xs font-mono space-y-1">
+                                                     <div className="flex justify-between items-center">
+                                                         <span className="text-zinc-500 uppercase text-[10px] tracking-wider font-bold">Recommended</span>
+                                                         <span className="text-zinc-300 truncate ml-2">Use <span className="text-emerald-400 font-bold">{activeMatchup.analysis.bestMoveStr}</span> (~{activeMatchup.analysis.maxOutgoingPct}%)</span>
+                                                     </div>
+                                                     <div className="flex justify-between items-center">
+                                                         <span className="text-zinc-500 uppercase text-[10px] tracking-wider font-bold">Threat</span>
+                                                         <span className="text-zinc-300 truncate ml-2">Expect <span className="text-red-400 font-bold">{activeMatchup.analysis.worstEnemyMoveStr}</span> ({activeMatchup.analysis.isControlRisk ? 'CC' : `~${activeMatchup.analysis.maxIncomingPct}%`})</span>
+                                                     </div>
                                                  </div>
                                             </div>
                                         </div>

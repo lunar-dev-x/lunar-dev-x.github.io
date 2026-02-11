@@ -109,15 +109,21 @@ export const getPreEvolution = async (currentSpecies: string): Promise<Evolution
     }
 };
 
-export const getPokemonDetails = async (species: string) => {
+export const getPokemonDetails = async (species: string): Promise<any> => {
     try {
         const res = await fetch(`https://pokeapi.co/api/v2/pokemon/${species.toLowerCase()}`);
         if (!res.ok) return null;
         const data = await res.json();
         
-        // Fetch Species data for Capture Rate
-        const specRes = await fetch(data.species.url);
-        const specData = await specRes.json();
+        let capture_rate = 45; // Default fallback
+        try {
+            // Fetch Species data for Capture Rate
+            const specRes = await fetch(data.species.url);
+            if(specRes.ok) {
+                const specData = await specRes.json();
+                capture_rate = specData.capture_rate;
+            }
+        } catch(e) { console.warn('Species fetch failed', e); }
 
         return {
             id: data.id,
@@ -129,7 +135,7 @@ export const getPokemonDetails = async (species: string) => {
                 method: m.version_group_details[0]?.move_learn_method?.name ?? 'unknown'
             })),
             stats: data.stats, // { base_stat, stat: { name } }
-            capture_rate: specData.capture_rate,
+            capture_rate,
             base_experience: data.base_experience
         };
     } catch (e) {

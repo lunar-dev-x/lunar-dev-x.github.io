@@ -28,14 +28,19 @@ const PokemonDetailsModal: React.FC<Props> = ({ pokemon, onUpdate, onClose }) =>
               const details = await getPokemonDetails(pokemon.species);
               if (details) {
                   setTypes(details.types);
-                  setPossibleMoves(details.moves);
+                  // Fix: Map to just string names AND sort uniquely
+                  const moveNames = Array.from(new Set(details.moves.map((m: any) => m.name))).sort() as string[];
+                  setPossibleMoves(moveNames);
                   // Auto-save types to skip fetch next time
                   onUpdate(pokemon.id, { types: details.types });
               }
           } else {
               // Just fetch moves list for autocomplete
               const details = await getPokemonDetails(pokemon.species);
-              if (details) setPossibleMoves(details.moves);
+              if (details) {
+                  const moveNames = Array.from(new Set(details.moves.map((m: any) => m.name))).sort() as string[];
+                  setPossibleMoves(moveNames);
+              }
           }
       };
       fetchDetails();

@@ -22,6 +22,14 @@ export const TYPE_CHART: Record<string, Record<string, number>> = {
   steel:    { fire: 0.5, water: 0.5, electric: 0.5, ice: 2, rock: 2, steel: 0.5 }
 };
 
+export const WEATHER_MODIFIERS: Record<string, { boost: string[], nerf: string[] }> = {
+    'none': { boost: [], nerf: [] },
+    'sun': { boost: ['fire'], nerf: ['water'] },
+    'rain': { boost: ['water'], nerf: ['fire'] },
+    'sand': { boost: ['rock'], nerf: [] }, // Rock spDef boost handled in engine, not type dmg directly usually
+    'hail': { boost: [], nerf: [] }
+};
+
 export const TYPE_COLORS: Record<string, string> = {
   normal: '#A8A77A',
   fire: '#EE8130',
