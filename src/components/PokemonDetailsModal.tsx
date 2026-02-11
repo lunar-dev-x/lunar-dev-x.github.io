@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Pokemon } from '../types';
-import { X, Sword, Shield, Save } from 'lucide-react';
+import { Pokemon, StatProfile } from '../types';
+import { X, Sword, Shield, Save, RefreshCw } from 'lucide-react';
 import { getTypeEffectiveness } from '../utils/gameData';
 import { getPokemonDetails } from '../utils/pokeApi';
 import AutocompleteInput from './AutocompleteInput';
@@ -13,6 +13,24 @@ interface Props {
   onClose: () => void;
 }
 
+const calculateStat = (base: number, level: number, isHp: boolean) => {
+    // Assumption: Neutral Nature, 15 IVs, 0 EVs (Generic Playthrough)
+    if (isHp) {
+        return Math.floor(((2 * base + 15) * level) / 100) + level + 10;
+    } else {
+        return Math.floor(((2 * base + 15) * level) / 100) + 5;
+    }
+};
+
+const STAT_LABELS: Record<string, string> = {
+    hp: 'HP',
+    attack: 'Attack',
+    defense: 'Defense',
+    'special-attack': 'Sp. Atk',
+    'special-defense': 'Sp. Def',
+    speed: 'Speed'
+};
+
 const PokemonDetailsModal: React.FC<Props> = ({ pokemon, onUpdate, onClose }) => {
   const [nickname, setNickname] = useState(pokemon.nickname || '');
   const [item, setItem] = useState(pokemon.item || '');
@@ -20,31 +38,55 @@ const PokemonDetailsModal: React.FC<Props> = ({ pokemon, onUpdate, onClose }) =>
   const [moves, setMoves] = useState<string[]>(pokemon.moves || ['', '', '', '']);
   const [types, setTypes] = useState<string[]>(pokemon.types || []);
   const [possibleMoves, setPossibleMoves] = useState<string[]>([]);
+  
+  // Stats State
+  const [stats, setStats] = useState<StatProfile>(pokemon.stats || {
+      hp: 0, attack: 0, defense: 0, 'special-attack': 0, 'special-defense': 0, speed: 0
+  });
+  const [baseStats, setBaseStats] = useState<any>(null); // To allow resetting to defaults
 
   // Effect to load types if missing
   useEffect(() => {
       const fetchDetails = async () => {
-          if (!pokemon.types || pokemon.types.length === 0) {
-              const details = await getPokemonDetails(pokemon.species);
-              if (details) {
+          const details = await getPokemonDetails(pokemon.species);
+          if (details) {
+              setBaseStats(details.stats);
+
+              if (!pokemon.types || pokemon.types.length === 0) {
                   setTypes(details.types);
-                  // Fix: Map to just string names AND sort uniquely
-                  const moveNames = Array.from(new Set(details.moves.map((m: any) => m.name))).sort() as string[];
-                  setPossibleMoves(moveNames);
-                  // Auto-save types to skip fetch next time
                   onUpdate(pokemon.id, { types: details.types });
               }
-          } else {
-              // Just fetch moves list for autocomplete
-              const details = await getPokemonDetails(pokemon.species);
-              if (details) {
-                  const moveNames = Array.from(new Set(details.moves.map((m: any) => m.name))).sort() as string[];
-                  setPossibleMoves(moveNames);
+              
+              const moveNames = Array.from(new Set(details.moves.map((m: any) => m.name))).sort() as string[];
+              setPossibleMoves(moveNames);
+
+              // If no custom stats saved, calculate them now
+              if (!pokemon.stats) {
+                  const s: any = {};
+                  details.stats.forEach((st: any) => {
+                      const isHp = st.stat.name === 'hp';
+                      s[st.stat.name] = calculateStat(st.base_stat, level, isHp);
+                  });
+                  setStats(s as StatProfile);
               }
           }
       };
       fetchDetails();
   }, [pokemon.species]);
+
+  // Recalculate stats when level changes IF using defaults (optional behavior, maybe just provide a reset button?)
+  // Actually usually users want stats to auto-update with level unless manually overriden.
+  // But hard to know if "manually overriden". Let's provide a "Recalculate" button.
+
+  const handleRecalculateStats = () => {
+      if (!baseStats) return;
+      const s: any = {};
+      baseStats.forEach((st: any) => {
+          const isHp = st.stat.name === 'hp';
+          s[st.stat.name] = calculateStat(st.base_stat, level, isHp);
+      });
+      setStats(s as StatProfile);
+  };
 
   const handleSave = () => {
     onUpdate(pokemon.id, {
@@ -52,7 +94,8 @@ const PokemonDetailsModal: React.FC<Props> = ({ pokemon, onUpdate, onClose }) =>
         item,
         level,
         moves,
-        types // Ensure types vary with evolutions if re-fetched
+        types, // Ensure types vary with evolutions if re-fetched
+        stats
     });
     onClose();
   };
@@ -128,6 +171,35 @@ const PokemonDetailsModal: React.FC<Props> = ({ pokemon, onUpdate, onClose }) =>
             <div className="p-6 overflow-y-auto grid grid-cols-1 md:grid-cols-2 gap-8">
                 {/* Stats & Weaknesses */}
                 <div className="space-y-6">
+                    <div>
+                        <div className="flex items-center justify-between mb-3">
+                            <h4 className="flex items-center gap-2 text-sm font-bold text-zinc-400 uppercase tracking-wider">
+                                <Sword size={14} /> Stats
+                            </h4>
+                            <button 
+                                onClick={handleRecalculateStats}
+                                className="text-[10px] flex items-center gap-1 text-zinc-500 hover:text-white bg-zinc-800 px-2 py-1 rounded transition"
+                                title="Recalculate based on Level & Base Stats"
+                            >
+                                <RefreshCw size={10} /> Auto-Calc
+                            </button>
+                        </div>
+                        
+                        <div className="grid grid-cols-2 gap-x-4 gap-y-2">
+                            {Object.entries(stats).map(([key, val]) => (
+                                <div key={key} className="flex items-center justify-between bg-zinc-950/50 p-2 rounded border border-zinc-800">
+                                    <span className="text-xs text-zinc-500 font-bold uppercase">{STAT_LABELS[key]}</span>
+                                    <input 
+                                        type="number" 
+                                        value={Math.round(val)} 
+                                        onChange={(e) => setStats({...stats, [key]: parseInt(e.target.value) || 0})}
+                                        className="w-12 bg-transparent text-right font-mono text-sm text-zinc-200 focus:outline-none focus:text-white"
+                                    />
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+
                     <div>
                         <h4 className="flex items-center gap-2 text-sm font-bold text-zinc-400 uppercase tracking-wider mb-3">
                             <Shield size={14} /> Type Matchups

@@ -2,6 +2,15 @@ export type Player = 'player1' | 'player2' | 'player3';
 
 export type PokemonStatus = 'party' | 'box' | 'graveyard';
 
+export interface StatProfile {
+  hp: number;
+  attack: number;
+  defense: number; 
+  'special-attack': number;
+  'special-defense': number;
+  speed: number;
+}
+
 export interface Pokemon {
   id: string;
   species: string;
@@ -21,6 +30,7 @@ export interface Pokemon {
   item?: string;
   nature?: string;
   types?: string[]; // ['fire', 'flying']
+  stats?: StatProfile; // Custom stats
 }
 
 export interface Route {

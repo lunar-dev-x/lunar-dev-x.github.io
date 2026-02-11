@@ -297,14 +297,22 @@ const CombatSimulator: React.FC<Props> = ({ isOpen, onClose, allPokemon, playerN
                  if (d) {
                     const baseS = convertStatsApi(d.stats);
                     const lvl = p.level || 50;
-                    const realS: StatProfile = {
-                        hp: calculateStat(baseS.hp, lvl, true),
-                        attack: calculateStat(baseS.attack, lvl, false),
-                        defense: calculateStat(baseS.defense, lvl, false),
-                        'special-attack': calculateStat(baseS['special-attack'], lvl, false),
-                        'special-defense': calculateStat(baseS['special-defense'], lvl, false),
-                        speed: calculateStat(baseS.speed, lvl, false),
-                    };
+                    
+                    // Priority: Custom Saved Stats > Calculated from Base
+                    let realS: StatProfile;
+                    
+                    if (p.stats) {
+                        realS = { ...p.stats };
+                    } else {
+                        realS = {
+                            hp: calculateStat(baseS.hp, lvl, true),
+                            attack: calculateStat(baseS.attack, lvl, false),
+                            defense: calculateStat(baseS.defense, lvl, false),
+                            'special-attack': calculateStat(baseS['special-attack'], lvl, false),
+                            'special-defense': calculateStat(baseS['special-defense'], lvl, false),
+                            speed: calculateStat(baseS.speed, lvl, false),
+                        };
+                    }
 
                     setBattleParty(prev => prev.map(mons => 
                         mons.id === p.id ? { 
@@ -356,7 +364,8 @@ const CombatSimulator: React.FC<Props> = ({ isOpen, onClose, allPokemon, playerN
   };
   
   const handleLevelChange = (id: string, val: number) => {
-      onUpdatePokemon(id, { level: val });
+      // Clear custom stats when level changes to allow formula to take over
+      onUpdatePokemon(id, { level: val, stats: undefined });
 
       setBattleParty(prev => prev.map(p => {
           if (p.id !== id) return p;
