@@ -1,6 +1,11 @@
 export const getDexId = async (species: string): Promise<number> => {
   try {
-    const response = await fetch(`https://pokeapi.co/api/v2/pokemon/${species.toLowerCase()}`);
+    let response = await fetch(`https://pokeapi.co/api/v2/pokemon/${species.toLowerCase()}`);
+    if (!response.ok) {
+       // Fallback to species if pokemon endpoint fails (e.g. Landorus -> Landorus-Incarnate issue)
+       response = await fetch(`https://pokeapi.co/api/v2/pokemon-species/${species.toLowerCase()}`);
+    }
+    
     if (!response.ok) return 0;
     const data = await response.json();
     return data.id;
@@ -111,13 +116,28 @@ export const getPreEvolution = async (currentSpecies: string): Promise<Evolution
 
 export const getPokemonDetails = async (species: string): Promise<any> => {
     try {
-        const res = await fetch(`https://pokeapi.co/api/v2/pokemon/${species.toLowerCase()}`);
+        let res = await fetch(`https://pokeapi.co/api/v2/pokemon/${species.toLowerCase()}`);
+        
+        // Handle species vs pokemon mismatch (e.g. Landorus -> Landorus-Incarnate)
+        if (!res.ok && res.status === 404) {
+             const speciesRes = await fetch(`https://pokeapi.co/api/v2/pokemon-species/${species.toLowerCase()}`);
+             if (speciesRes.ok) {
+                 const speciesData = await speciesRes.json();
+                 // Find default variety
+                 const defaultVariety = speciesData.varieties.find((v: any) => v.is_default);
+                 if (defaultVariety) {
+                     res = await fetch(defaultVariety.pokemon.url);
+                 }
+             }
+        }
+
         if (!res.ok) return null;
         const data = await res.json();
         
         let capture_rate = 45; // Default fallback
         try {
             // Fetch Species data for Capture Rate
+            // If data.species.url is available use that to get species info
             const specRes = await fetch(data.species.url);
             if(specRes.ok) {
                 const specData = await specRes.json();

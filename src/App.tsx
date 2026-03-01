@@ -75,27 +75,36 @@ function App() {
     if (saved) {
       const parsed = JSON.parse(saved);
       
-      // Smart merge of routes: preserve status/encounters for existing IDs, but use new Names/Order from INITIAL_ROUTES
-      const initialIds = new Set(INITIAL_ROUTES.map(r => r.id));
-      let mergedRoutes = INITIAL_ROUTES.map(initialRoute => {
-        const savedRoute = parsed.routes.find((r: Route) => r.id === initialRoute.id);
-        if (savedRoute) {
-          return {
-            ...initialRoute, // Use new name/structure
-            status: savedRoute.status,
-            encounterP1: savedRoute.encounterP1,
-            encounterP2: savedRoute.encounterP2,
-            encounterP3: savedRoute.encounterP3,
-            failedBy: savedRoute.failedBy || undefined, // Ensure no nulls
-            isCustom: savedRoute.isCustom
-          };
-        }
-        return initialRoute;
-      });
+      // Smart merge: Prioritize SAVED order, but update definitions from INITIAL_ROUTES
+      const initialRouteMap = new Map(INITIAL_ROUTES.map(r => [r.id, r]));
+      const savedRouteIds = new Set((parsed.routes || []).map((r: Route) => r.id));
 
-      // Recover Custom Routes
-      const customRoutes = (parsed.routes || []).filter((r: Route) => !initialIds.has(r.id));
-      mergedRoutes = [...mergedRoutes, ...customRoutes];
+      // 1. Map saved routes (keeping order) to their latest definitions
+      let mergedRoutes = (parsed.routes || []).map((savedRoute: Route) => {
+          const initialDef = initialRouteMap.get(savedRoute.id);
+          
+          if (initialDef) {
+              // Standard route: Update name/definition, keep progress
+              return {
+                  ...initialDef,
+                  status: savedRoute.status,
+                  encounterP1: savedRoute.encounterP1,
+                  encounterP2: savedRoute.encounterP2,
+                  encounterP3: savedRoute.encounterP3,
+                  failedBy: savedRoute.failedBy || undefined,
+                  isCustom: savedRoute.isCustom
+              };
+          } else if (savedRoute.isCustom) {
+              // Custom route: Keep as is
+              return savedRoute;
+          }
+          // Old standard route removed from config: Filter out later
+          return null;
+      }).filter((r: Route | null) => r !== null) as Route[];
+
+      // 2. Append any NEW routes from INITIAL_ROUTES that weren't in save
+      const newRoutes = INITIAL_ROUTES.filter(r => !savedRouteIds.has(r.id));
+      mergedRoutes = [...mergedRoutes, ...newRoutes];
 
       return {
           ...parsed,
